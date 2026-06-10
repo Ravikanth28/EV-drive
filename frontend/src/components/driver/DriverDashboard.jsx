@@ -6,7 +6,7 @@ import {
 import { DataContext } from '../../App'
 import {
   monthlyAgg, countWhere, sumBy, avgBy,
-  fmtNum, fmtCurrency, COLORS
+  fmtNum, fmtCurrency, driverName,
 } from '../../utils/dataUtils'
 
 const NAV_TABS = [
@@ -193,8 +193,9 @@ export default function DriverDashboard({ user, onLogout }) {
           }}>
             <div style={{ fontSize: '28px', textAlign: 'center', marginBottom: '6px' }}>🚗</div>
             <div style={{ color: '#fff', fontWeight: '700', fontSize: '14px', textAlign: 'center' }}>
-              Driver #{driverId}
+              {driverName(driverId)}
             </div>
+            <div style={{ color: '#bfdbfe', fontSize: '11px', textAlign: 'center' }}>Driver #{driverId}</div>
             <div style={{ color: '#bfdbfe', fontSize: '11px', textAlign: 'center', marginTop: '2px' }}>
               Vehicle: {latestRecord.Vehicle_ID || 'EV—'}
             </div>
