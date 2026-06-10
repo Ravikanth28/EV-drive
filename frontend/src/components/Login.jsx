@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { uniqueValues } from '../utils/dataUtils'
 
+const INK = '#16181d'
 const S = {
   page: {
     minHeight: '100vh',
-    background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)',
+    background: 'radial-gradient(circle at 30% 20%, #2a2d35 0%, #16181d 55%, #0d0e12 100%)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -12,50 +13,57 @@ const S = {
   },
   box: {
     background: '#fff',
-    borderRadius: '16px',
-    boxShadow: '0 25px 50px rgba(0,0,0,0.3)',
+    borderRadius: '18px',
+    boxShadow: '0 30px 60px rgba(0,0,0,0.45)',
     width: '100%',
     maxWidth: '440px',
     overflow: 'hidden',
+    border: '1px solid rgba(255,255,255,0.06)',
   },
   header: {
-    background: 'linear-gradient(135deg, #1d4ed8, #2563eb)',
-    padding: '32px 32px 24px',
+    background: 'linear-gradient(135deg, #2a2d35 0%, #16181d 100%)',
+    padding: '34px 32px 26px',
     color: '#fff',
   },
-  logo: { fontSize: '28px', marginBottom: '4px' },
-  title: { fontSize: '20px', fontWeight: '700', margin: 0 },
-  subtitle: { fontSize: '13px', opacity: 0.8, marginTop: '4px' },
+  logoWrap: {
+    width: '46px', height: '46px', borderRadius: '13px',
+    background: 'linear-gradient(135deg, #3b3f4a, #16181d)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: '24px', marginBottom: '14px',
+    boxShadow: '0 8px 18px rgba(0,0,0,0.35)',
+  },
+  title: { fontSize: '21px', fontWeight: '800', margin: 0, letterSpacing: '-0.02em' },
+  subtitle: { fontSize: '13px', opacity: 0.7, marginTop: '5px' },
   body: { padding: '28px 32px 32px' },
   roleRow: { display: 'flex', gap: '12px', marginBottom: '24px' },
   roleBtn: (active) => ({
     flex: 1,
-    padding: '12px',
-    borderRadius: '10px',
-    border: active ? '2px solid #2563eb' : '2px solid #e2e8f0',
-    background: active ? '#dbeafe' : '#f8fafc',
-    color: active ? '#1d4ed8' : '#64748b',
-    fontWeight: '600',
+    padding: '14px 12px',
+    borderRadius: '12px',
+    border: active ? `2px solid ${INK}` : '2px solid #e8e9ee',
+    background: active ? '#16181d' : '#fafafb',
+    color: active ? '#fff' : '#868c98',
+    fontWeight: '700',
     fontSize: '14px',
     cursor: 'pointer',
-    transition: 'all 0.15s',
+    transition: 'all 0.18s',
     textAlign: 'center',
   }),
   roleIcon: { fontSize: '22px', display: 'block', marginBottom: '4px' },
   fieldLabel: {
     display: 'block',
-    fontSize: '12px',
-    fontWeight: '600',
-    color: '#374151',
+    fontSize: '11px',
+    fontWeight: '700',
+    color: '#565b66',
     marginBottom: '6px',
     textTransform: 'uppercase',
-    letterSpacing: '0.04em',
+    letterSpacing: '0.06em',
   },
   input: {
     width: '100%',
-    padding: '10px 14px',
-    border: '1px solid #e2e8f0',
-    borderRadius: '8px',
+    padding: '11px 14px',
+    border: '1.5px solid #e8e9ee',
+    borderRadius: '10px',
     fontSize: '14px',
     fontFamily: 'inherit',
     outline: 'none',
@@ -64,13 +72,13 @@ const S = {
   },
   submitBtn: {
     width: '100%',
-    padding: '12px',
-    background: '#2563eb',
+    padding: '13px',
+    background: INK,
     color: '#fff',
     border: 'none',
-    borderRadius: '8px',
+    borderRadius: '10px',
     fontSize: '15px',
-    fontWeight: '600',
+    fontWeight: '700',
     cursor: 'pointer',
     marginTop: '8px',
     transition: 'background 0.15s',
@@ -79,17 +87,18 @@ const S = {
     background: '#fee2e2',
     color: '#dc2626',
     padding: '10px 14px',
-    borderRadius: '8px',
+    borderRadius: '10px',
     fontSize: '13px',
     marginBottom: '16px',
   },
   hint: {
-    background: '#f1f5f9',
-    borderRadius: '8px',
-    padding: '10px 14px',
+    background: '#f4f5f7',
+    borderRadius: '10px',
+    padding: '12px 14px',
     fontSize: '12px',
-    color: '#64748b',
-    marginTop: '16px',
+    color: '#565b66',
+    marginTop: '18px',
+    border: '1px solid #e8e9ee',
   },
 }
 
@@ -138,7 +147,7 @@ export default function Login({ onLogin, data }) {
       <div style={S.box}>
         {/* Header */}
         <div style={S.header}>
-          <div style={S.logo}>⚡</div>
+          <div style={S.logoWrap}>⚡</div>
           <h1 style={S.title}>EV Fleet Dashboard</h1>
           <p style={S.subtitle}>Fleet Management &amp; Analytics Platform</p>
         </div>
@@ -188,8 +197,8 @@ export default function Login({ onLogin, data }) {
             />
 
             <button type="submit" style={S.submitBtn}
-              onMouseOver={e => (e.target.style.background = '#1d4ed8')}
-              onMouseOut={e => (e.target.style.background = '#2563eb')}
+              onMouseOver={e => (e.target.style.background = '#2a2d35')}
+              onMouseOut={e => (e.target.style.background = INK)}
             >
               Sign In →
             </button>

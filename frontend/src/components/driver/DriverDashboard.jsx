@@ -1,6 +1,6 @@
 import { useState, useContext, useMemo } from 'react'
 import {
-  BarChart, Bar, LineChart, Line, AreaChart, Area, ComposedChart, PieChart, Pie, Cell,
+  LineChart, Line, ComposedChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 import { DataContext } from '../../App'
@@ -9,6 +9,8 @@ import {
   monthlyAgg, countWhere, sumBy, avgBy,
   fmtNum, fmtCurrency, COLORS, driverName
 } from '../../utils/dataUtils'
+import DynamicChart from '../shared/DynamicChart'
+import SortableTable from '../shared/SortableTable'
 
 const NAV_TABS = [
   { key: 'overview', icon: '📊', label: 'Overview', sub: 'General performance & history' },
@@ -308,39 +310,12 @@ export default function DriverDashboard({ user, onLogout }) {
 
               {/* Row 1: Overspeed + Distance Charts */}
               <div className="charts-grid-2">
-                <ChartCard title="Monthly Overspeed Events" sub="Trips where you exceeded the speed limit">
-                  <ResponsiveContainer width="100%" height={240}>
-                    <BarChart data={monthlyOverspeed} margin={{ top: 5, right: 20, bottom: 20, left: 10 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                      <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                      <YAxis tick={{ fontSize: 11 }} />
-                      <Tooltip formatter={v => [v, 'Overspeed Events']} />
-                      <Bar dataKey="value" name="Overspeed Events" radius={[4, 4, 0, 0]}>
-                        {monthlyOverspeed.map((entry, i) => (
-                          <Cell key={i} fill={entry.value > 5 ? '#dc2626' : '#fca5a5'} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </ChartCard>
-
-                <ChartCard title="Monthly Distance Travelled (km)" sub="Total distance covered each month across your trips">
-                  <ResponsiveContainer width="100%" height={240}>
-                    <AreaChart data={monthlyDist} margin={{ top: 5, right: 20, bottom: 20, left: 10 }}>
-                      <defs>
-                        <linearGradient id="distGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                      <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                      <YAxis tick={{ fontSize: 11 }} />
-                      <Tooltip formatter={v => [fmtNum(v, 1) + ' km', 'Distance']} />
-                      <Area type="monotone" dataKey="value" name="Distance (km)" stroke="#2563eb" fill="url(#distGrad)" strokeWidth={2} dot={{ r: 4 }} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </ChartCard>
+                <DynamicChart title="Monthly Overspeed Events" sub="Trips where you exceeded the speed limit"
+                  data={monthlyOverspeed} defaultType="bar"
+                  metrics={[{ key: 'value', label: 'Overspeed Events', color: '#dc2626', colorFn: r => (r.value > 5 ? '#dc2626' : '#fca5a5') }]} />
+                <DynamicChart title="Monthly Distance Travelled (km)" sub="Total distance covered each month across your trips"
+                  data={monthlyDist} defaultType="area"
+                  metrics={[{ key: 'value', label: 'Distance (km)', color: '#2563eb', format: v => fmtNum(v, 1) + ' km' }]} />
               </div>
 
               {/* Row 2: Income vs Expense */}
@@ -361,51 +336,25 @@ export default function DriverDashboard({ user, onLogout }) {
               {/* Row 3: Recent Trips Table */}
               <div className="chart-wrapper" style={{ overflowX: 'auto' }}>
                 <div className="chart-title">Recent Trips (Last 10)</div>
-                <div className="chart-sub">Your most recent trip records and performance logs</div>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      {['Date', 'Vehicle', 'Distance (km)', 'Speed (km/h)', 'Overspeed', 'Passengers', 'Income (₹)', 'Expense (₹)', 'Workshop', 'Breakdown'].map(h => (
-                        <th key={h}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentTrips.map((trip, i) => (
-                      <tr key={i}>
-                        <td style={{ whiteSpace: 'nowrap' }}>{trip.Date}</td>
-                        <td style={{ fontWeight: '700' }}>{trip.Vehicle_ID}</td>
-                        <td>{Number(trip.Distance_Travelled_km || 0).toFixed(1)}</td>
-                        <td>{Number(trip.Speed_kmph || 0).toFixed(1)}</td>
-                        <td>
-                          <span className={`badge ${trip.Overspeed === 'Yes' ? 'badge-red' : 'badge-green'}`}>
-                            {trip.Overspeed === 'Yes' ? 'Yes' : 'No'}
-                          </span>
-                        </td>
-                        <td>{trip.Passenger_Count}</td>
-                        <td style={{ color: 'var(--success)', fontWeight: '600' }}>{fmtCurrency(parseFloat(trip.Income_Generated) || 0)}</td>
-                        <td style={{ color: 'var(--warning)', fontWeight: '600' }}>{fmtCurrency(parseFloat(trip.Total_Expense) || 0)}</td>
-                        <td>
-                          <span className={`badge ${trip.Workshop_Visit === 'Yes' ? 'badge-orange' : 'badge-green'}`}>
-                            {trip.Workshop_Visit === 'Yes' ? 'Yes' : 'No'}
-                          </span>
-                        </td>
-                        <td>
-                          <span className={`badge ${trip.Breakdown === 'Yes' ? 'badge-red' : 'badge-green'}`}>
-                            {trip.Breakdown === 'Yes' ? 'Yes' : 'No'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                    {recentTrips.length === 0 && (
-                      <tr>
-                        <td colSpan={10} style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                          No trip data found for Driver #{driverId}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                <div className="chart-sub">Your most recent trip records — click any column to sort ascending / descending</div>
+                <SortableTable
+                  rows={recentTrips}
+                  rowKey={(t, i) => i}
+                  initialSort={{ key: 'Date', dir: 'desc' }}
+                  emptyMessage={`No trip data found for Driver #${driverId}`}
+                  columns={[
+                    { key: 'Date', label: 'Date', tdStyle: { whiteSpace: 'nowrap' } },
+                    { key: 'Vehicle_ID', label: 'Vehicle', render: t => <span style={{ fontWeight: 700 }}>{t.Vehicle_ID}</span> },
+                    { key: 'Distance_Travelled_km', label: 'Distance (km)', align: 'right', sortAccessor: t => parseFloat(t.Distance_Travelled_km) || 0, render: t => Number(t.Distance_Travelled_km || 0).toFixed(1) },
+                    { key: 'Speed_kmph', label: 'Speed (km/h)', align: 'right', sortAccessor: t => parseFloat(t.Speed_kmph) || 0, render: t => Number(t.Speed_kmph || 0).toFixed(1) },
+                    { key: 'Overspeed', label: 'Overspeed', align: 'center', render: t => <span className={`badge ${t.Overspeed === 'Yes' ? 'badge-red' : 'badge-green'}`}>{t.Overspeed === 'Yes' ? 'Yes' : 'No'}</span> },
+                    { key: 'Passenger_Count', label: 'Passengers', align: 'right', sortAccessor: t => parseFloat(t.Passenger_Count) || 0 },
+                    { key: 'Income_Generated', label: 'Income (₹)', align: 'right', sortAccessor: t => parseFloat(t.Income_Generated) || 0, render: t => <span style={{ color: 'var(--success)', fontWeight: 600 }}>{fmtCurrency(parseFloat(t.Income_Generated) || 0)}</span> },
+                    { key: 'Total_Expense', label: 'Expense (₹)', align: 'right', sortAccessor: t => parseFloat(t.Total_Expense) || 0, render: t => <span style={{ color: 'var(--warning)', fontWeight: 600 }}>{fmtCurrency(parseFloat(t.Total_Expense) || 0)}</span> },
+                    { key: 'Workshop_Visit', label: 'Workshop', align: 'center', render: t => <span className={`badge ${t.Workshop_Visit === 'Yes' ? 'badge-orange' : 'badge-green'}`}>{t.Workshop_Visit === 'Yes' ? 'Yes' : 'No'}</span> },
+                    { key: 'Breakdown', label: 'Breakdown', align: 'center', render: t => <span className={`badge ${t.Breakdown === 'Yes' ? 'badge-red' : 'badge-green'}`}>{t.Breakdown === 'Yes' ? 'Yes' : 'No'}</span> },
+                  ]}
+                />
               </div>
             </>
           )}
@@ -439,23 +388,9 @@ export default function DriverDashboard({ user, onLogout }) {
 
               {/* Distance Charts */}
               <div className="charts-grid-2">
-                <ChartCard title="Monthly Distance Profile" sub="Total kilometers logged per calendar month">
-                  <ResponsiveContainer width="100%" height={260}>
-                    <AreaChart data={monthlyDist} margin={{ top: 5, right: 20, bottom: 20, left: 10 }}>
-                      <defs>
-                        <linearGradient id="distColor" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#0891b2" stopOpacity={0.3}/>
-                          <stop offset="95%" stopColor="#0891b2" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                      <XAxis dataKey="month" />
-                      <YAxis label={{ value: 'Distance (km)', angle: -90, position: 'insideLeft', fontSize: 11 }} />
-                      <Tooltip formatter={v => [fmtNum(v, 1) + ' km', 'Distance']} />
-                      <Area type="monotone" dataKey="value" stroke="#0891b2" fill="url(#distColor)" strokeWidth={2} dot={{ r: 4 }} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </ChartCard>
+                <DynamicChart title="Monthly Distance Profile" sub="Total kilometers logged per calendar month"
+                  data={monthlyDist} height={260} defaultType="area"
+                  metrics={[{ key: 'value', label: 'Distance (km)', color: '#0891b2', format: v => fmtNum(v, 1) + ' km' }]} />
 
                 <ChartCard title="Trip-by-Trip Distance Progress" sub="Distance logged in each of the last 15 active runs">
                   <ResponsiveContainer width="100%" height={260}>
@@ -473,33 +408,21 @@ export default function DriverDashboard({ user, onLogout }) {
               {/* Longest Trips Table */}
               <div className="chart-wrapper" style={{ overflowX: 'auto', marginTop: '20px' }}>
                 <div className="chart-title">🏆 Longest Trips (Top 5)</div>
-                <div className="chart-sub">Your top distance records listed in descending order</div>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      {['Date', 'Vehicle ID', 'Distance (km)', 'Avg Speed (km/h)', 'Road Type', 'Income (₹)', 'Expense (₹)'].map(h => (
-                        <th key={h}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {longestTrips.map((trip, idx) => (
-                      <tr key={idx}>
-                        <td>{trip.Date}</td>
-                        <td style={{ fontWeight: '700' }}>{trip.Vehicle_ID}</td>
-                        <td style={{ fontWeight: '600', color: 'var(--primary)' }}>{Number(trip.Distance_Travelled_km || 0).toFixed(1)} km</td>
-                        <td>{Number(trip.Speed_kmph || 0).toFixed(1)}</td>
-                        <td>
-                          <span className={`badge ${trip.Road_Type === 'Highway' ? 'badge-blue' : trip.Road_Type === 'City' ? 'badge-green' : 'badge-orange'}`}>
-                            {trip.Road_Type}
-                          </span>
-                        </td>
-                        <td style={{ color: 'var(--success)' }}>{fmtCurrency(parseFloat(trip.Income_Generated) || 0)}</td>
-                        <td style={{ color: 'var(--warning)' }}>{fmtCurrency(parseFloat(trip.Total_Expense) || 0)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="chart-sub">Your top distance records — click any column to sort ascending / descending</div>
+                <SortableTable
+                  rows={longestTrips}
+                  rowKey={(t, i) => i}
+                  initialSort={{ key: 'Distance_Travelled_km', dir: 'desc' }}
+                  columns={[
+                    { key: 'Date', label: 'Date' },
+                    { key: 'Vehicle_ID', label: 'Vehicle ID', render: t => <span style={{ fontWeight: 700 }}>{t.Vehicle_ID}</span> },
+                    { key: 'Distance_Travelled_km', label: 'Distance (km)', align: 'right', sortAccessor: t => parseFloat(t.Distance_Travelled_km) || 0, render: t => <span style={{ fontWeight: 600, color: 'var(--primary)' }}>{Number(t.Distance_Travelled_km || 0).toFixed(1)} km</span> },
+                    { key: 'Speed_kmph', label: 'Avg Speed (km/h)', align: 'right', sortAccessor: t => parseFloat(t.Speed_kmph) || 0, render: t => Number(t.Speed_kmph || 0).toFixed(1) },
+                    { key: 'Road_Type', label: 'Road Type', render: t => <span className={`badge ${t.Road_Type === 'Highway' ? 'badge-blue' : t.Road_Type === 'City' ? 'badge-green' : 'badge-orange'}`}>{t.Road_Type}</span> },
+                    { key: 'Income_Generated', label: 'Income (₹)', align: 'right', sortAccessor: t => parseFloat(t.Income_Generated) || 0, render: t => <span style={{ color: 'var(--success)' }}>{fmtCurrency(parseFloat(t.Income_Generated) || 0)}</span> },
+                    { key: 'Total_Expense', label: 'Expense (₹)', align: 'right', sortAccessor: t => parseFloat(t.Total_Expense) || 0, render: t => <span style={{ color: 'var(--warning)' }}>{fmtCurrency(parseFloat(t.Total_Expense) || 0)}</span> },
+                  ]}
+                />
               </div>
             </>
           )}
