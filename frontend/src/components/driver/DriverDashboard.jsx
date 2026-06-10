@@ -1,23 +1,52 @@
-import { useContext, useMemo } from 'react'
+import { useState, useContext, useMemo } from 'react'
 import {
-  BarChart, Bar, LineChart, Line, AreaChart, Area, ComposedChart,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell,
+  BarChart, Bar, LineChart, Line, AreaChart, Area, ComposedChart, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 import { DataContext } from '../../App'
 import {
   monthlyAgg, countWhere, sumBy, avgBy,
-  fmtNum, fmtCurrency, driverName,
+  fmtNum, fmtCurrency, COLORS
 } from '../../utils/dataUtils'
 
+const NAV_TABS = [
+  { key: 'overview', icon: '📊', label: 'Overview', sub: 'General performance & history' },
+  { key: 'distance', icon: '📏', label: 'Distance Travelled', sub: 'Mileage & trip distances' },
+  { key: 'battery',  icon: '🔋', label: 'Battery & Charge', sub: 'State of charge & health' },
+  { key: 'vehicle',  icon: '🚗', label: 'Vehicle Specs', sub: 'Assigned car details' },
+  { key: 'road',     icon: '🛣️', label: 'Road Performance', sub: 'Highway vs City driving' },
+]
+
 export default function DriverDashboard({ user, onLogout }) {
-  const data    = useContext(DataContext)
+  const data     = useContext(DataContext)
   const driverId = String(user.id)
+  const [tab, setTab] = useState('overview')
 
   // ── Filter to this driver only ────────────────────────────────────────────
   const dRows = useMemo(
     () => data.filter(r => String(r.Driver_ID) === driverId),
     [data, driverId]
   )
+
+  // Sort rows chronologically for timeline metrics
+  const sortedChronological = useMemo(() => {
+    return [...dRows].sort((a, b) => {
+      const da = new Date(a.Date + ' ' + (a.Time || '00:00:00'))
+      const db = new Date(b.Date + ' ' + (b.Time || '00:00:00'))
+      return da - db
+    })
+  }, [dRows])
+
+  // Sort rows reverse chronologically to find latest values
+  const sortedReverseChronological = useMemo(() => {
+    return [...dRows].sort((a, b) => {
+      const da = new Date(a.Date + ' ' + (a.Time || '00:00:00'))
+      const db = new Date(b.Date + ' ' + (b.Time || '00:00:00'))
+      return db - da
+    })
+  }, [dRows])
+
+  const latestRecord = useMemo(() => sortedReverseChronological[0] || {}, [sortedReverseChronological])
 
   // ── Monthly aggregations ──────────────────────────────────────────────────
   const monthlyOverspeed = useMemo(
@@ -27,14 +56,6 @@ export default function DriverDashboard({ user, onLogout }) {
   const monthlyDist = useMemo(() => monthlyAgg(dRows, 'Distance_Travelled_km'), [dRows])
   const monthlyInc  = useMemo(() => monthlyAgg(dRows, 'Income_Generated'), [dRows])
   const monthlyExp  = useMemo(() => monthlyAgg(dRows, 'Total_Expense'), [dRows])
-  const monthlyWorkshop = useMemo(
-    () => monthlyAgg(dRows, null, rows => countWhere(rows, r => r.Workshop_Visit === 'Yes')),
-    [dRows]
-  )
-  const monthlyBreakdown = useMemo(
-    () => monthlyAgg(dRows, null, rows => countWhere(rows, r => r.Breakdown === 'Yes')),
-    [dRows]
-  )
 
   // ── Income vs Expense combined chart ──────────────────────────────────────
   const monthlyFinance = useMemo(() => {
@@ -58,39 +79,117 @@ export default function DriverDashboard({ user, onLogout }) {
     workshops:     countWhere(dRows, r => r.Workshop_Visit === 'Yes'),
     breakdowns:    countWhere(dRows, r => r.Breakdown === 'Yes'),
     avgSpeed:      avgBy(dRows, 'Speed_kmph'),
-    avgPassengers: avgBy(dRows, 'Passenger_Count'),
   }), [dRows])
 
   // ── Recent trips (last 10) ────────────────────────────────────────────────
-  const recentTrips = useMemo(
-    () => [...dRows]
-      .sort((a, b) => new Date(b.Date) - new Date(a.Date))
-      .slice(0, 10),
-    [dRows]
-  )
+  const recentTrips = useMemo(() => sortedReverseChronological.slice(0, 10), [sortedReverseChronological])
+
+  // ── DISTANCE TAB COMPUTATIONS ─────────────────────────────────────────────
+  const maxTripDist = useMemo(() => {
+    return Math.max(...dRows.map(r => parseFloat(r.Distance_Travelled_km) || 0), 0)
+  }, [dRows])
+
+  const avgTripDist = useMemo(() => {
+    return avgBy(dRows, 'Distance_Travelled_km')
+  }, [dRows])
+
+  const tripDistanceHistory = useMemo(() => {
+    return sortedChronological
+      .filter(r => parseFloat(r.Distance_Travelled_km) > 0)
+      .slice(-15)
+      .map((r, i) => ({
+        tripIndex: `Trip #${i + 1}`,
+        distance: parseFloat(r.Distance_Travelled_km) || 0,
+        date: r.Date
+      }))
+  }, [sortedChronological])
+
+  const longestTrips = useMemo(() => {
+    return [...dRows]
+      .sort((a, b) => (parseFloat(b.Distance_Travelled_km) || 0) - (parseFloat(a.Distance_Travelled_km) || 0))
+      .slice(0, 5)
+  }, [dRows])
+
+  // ── BATTERY TAB COMPUTATIONS ──────────────────────────────────────────────
+  const latestBattery = parseFloat(latestRecord.Battery_Percentage) || 0
+  const latestRange = parseFloat(latestRecord.Remaining_Range_km) || 0
+  const latestHealth = parseFloat(latestRecord.Battery_Health_Percentage) || 0
+  const latestCycle = latestRecord.Charge_Cycle_Count || 0
+  const currentStatus = latestRecord.Vehicle_Status || 'Unknown'
+
+  const batteryHistory = useMemo(() => {
+    return sortedChronological
+      .slice(-25)
+      .map(r => ({
+        timeLabel: `${r.Date} ${r.Time ? r.Time.substring(0, 5) : ''}`,
+        battery: parseFloat(r.Battery_Percentage) || 0,
+        range: parseFloat(r.Remaining_Range_km) || 0,
+        status: r.Charging_Status === 'Yes' ? 'Charging' : 'Running'
+      }))
+  }, [sortedChronological])
+
+  const monthlyEnergy = useMemo(() => monthlyAgg(dRows, 'Energy_Consumed_kWh'), [dRows])
+
+  const chargingSessions = useMemo(() => {
+    return dRows
+      .filter(r => r.Charging_Status === 'Yes')
+      .sort((a, b) => new Date(b.Date + ' ' + (b.Time || '00:00:00')) - new Date(a.Date + ' ' + (a.Time || '00:00:00')))
+      .slice(0, 5)
+  }, [dRows])
+
+  // ── ROAD ANALYTICS COMPUTATIONS ───────────────────────────────────────────
+  const roadAnalytics = useMemo(() => {
+    const roadTypes = ['City', 'Highway', 'Mixed']
+    return roadTypes.map(type => {
+      const trips = dRows.filter(r => r.Road_Type === type)
+      const distance = sumBy(trips, 'Distance_Travelled_km')
+      const avgSpeed = avgBy(trips, 'Speed_kmph')
+      const overspeedCount = countWhere(trips, r => r.Overspeed === 'Yes')
+      const energy = sumBy(trips, 'Energy_Consumed_kWh')
+      // Wh/km = (Energy in kWh * 1000) / distance in km
+      const efficiency = distance > 0 ? (energy * 1000) / distance : 0
+      return {
+        type,
+        tripsCount: trips.length,
+        distance,
+        avgSpeed,
+        overspeedCount,
+        efficiency,
+      }
+    })
+  }, [dRows])
+
+  const roadTypePieData = useMemo(() => {
+    return roadAnalytics.map((item, i) => ({
+      name: item.type,
+      value: Math.round(item.distance),
+      color: COLORS[i % COLORS.length]
+    })).filter(s => s.value > 0)
+  }, [roadAnalytics])
+
+  const activeTabDetails = NAV_TABS.find(t => t.key === tab)
+  const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      {/* ── Sidebar ── */}
-      <aside style={{
-        width: '220px', flexShrink: 0,
-        background: 'var(--sidebar-bg)',
-        display: 'flex', flexDirection: 'column',
-        borderRight: '1px solid #1e293b',
-      }}>
+      {/* ── SIDEBAR ── */}
+      <aside className="sidebar">
         {/* Logo */}
-        <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid #1e293b' }}>
-          <div style={{ fontSize: '22px', marginBottom: '2px' }}>⚡</div>
-          <div style={{ color: '#fff', fontWeight: '700', fontSize: '15px' }}>EV Fleet</div>
-          <div style={{ color: '#475569', fontSize: '11px' }}>Driver Portal</div>
+        <div className="sidebar-logo">
+          <div className="sidebar-logo-icon">⚡</div>
+          <div className="sidebar-logo-text">
+            <div className="sidebar-logo-title">EV Fleet</div>
+            <div className="sidebar-logo-sub">Driver Portal</div>
+          </div>
         </div>
 
-        {/* Driver info card */}
-        <div style={{ padding: '16px', borderBottom: '1px solid #1e293b' }}>
+        {/* Driver Profile Summary */}
+        <div style={{ padding: '16px', borderBottom: '1px solid var(--sidebar-border)' }}>
           <div style={{
             background: 'linear-gradient(135deg, #1e40af, #2563eb)',
             borderRadius: '10px',
             padding: '12px 14px',
+            boxShadow: '0 4px 12px rgba(37, 99, 235, 0.2)'
           }}>
             <div style={{ fontSize: '28px', textAlign: 'center', marginBottom: '6px' }}>🚗</div>
             <div style={{ color: '#fff', fontWeight: '700', fontSize: '14px', textAlign: 'center' }}>
@@ -98,272 +197,637 @@ export default function DriverDashboard({ user, onLogout }) {
             </div>
             <div style={{ color: '#bfdbfe', fontSize: '11px', textAlign: 'center' }}>Driver #{driverId}</div>
             <div style={{ color: '#bfdbfe', fontSize: '11px', textAlign: 'center', marginTop: '2px' }}>
-              {stats.totalTrips} trips recorded
+              Vehicle: {latestRecord.Vehicle_ID || 'EV—'}
             </div>
           </div>
         </div>
 
-        {/* Quick stats in sidebar */}
-        <div style={{ padding: '12px', flex: 1 }}>
-          {[
-            { label: 'Total Distance', value: fmtNum(stats.totalKm, 0) + ' km', color: '#0891b2' },
-            { label: 'Total Income', value: fmtCurrency(stats.totalIncome), color: '#16a34a' },
-            { label: 'Overspeed %', value: stats.overspeedPct.toFixed(1) + '%', color: stats.overspeedPct > 20 ? '#dc2626' : '#ea580c' },
-            { label: 'Breakdowns', value: String(stats.breakdowns), color: stats.breakdowns > 0 ? '#dc2626' : '#16a34a' },
-          ].map(item => (
-            <div key={item.label} style={{
-              background: '#1e293b',
-              borderRadius: '8px',
-              padding: '10px 12px',
-              marginBottom: '8px',
-            }}>
-              <div style={{ color: '#94a3b8', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                {item.label}
-              </div>
-              <div style={{ color: item.color, fontWeight: '700', fontSize: '15px', marginTop: '2px' }}>
-                {item.value}
-              </div>
-            </div>
+        {/* Tab Navigation */}
+        <nav className="sidebar-nav">
+          <div className="sidebar-nav-label">Driver Portal</div>
+          {NAV_TABS.map(({ key, icon, label, sub }) => (
+            <button
+              key={key}
+              className={`nav-btn${tab === key ? ' active' : ''}`}
+              onClick={() => setTab(key)}
+            >
+              <span className="nav-btn-icon">{icon}</span>
+              <span style={{ flex: 1 }}>
+                <span style={{ display: 'block', fontSize: '13px' }}>{label}</span>
+                <span style={{ display: 'block', fontSize: '10px', opacity: tab === key ? 0.8 : 0.55, marginTop: '1px' }}>{sub}</span>
+              </span>
+            </button>
           ))}
-        </div>
+        </nav>
 
-        {/* Footer */}
-        <div style={{ padding: '16px', borderTop: '1px solid #1e293b' }}>
-          <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '8px' }}>
-            Logged in as <span style={{ color: '#fff', fontWeight: '600' }}>Driver {driverId}</span>
+        {/* Sidebar Footer */}
+        <div className="sidebar-footer">
+          <div className="sidebar-user-card" style={{ marginBottom: '10px' }}>
+            <div className="sidebar-user-avatar">👤</div>
+            <div>
+              <div className="sidebar-user-name" style={{ fontSize: '12px' }}>Driver #{driverId}</div>
+              <div className="sidebar-user-role" style={{ fontSize: '10px' }}>{stats.totalTrips} recorded trips</div>
+            </div>
           </div>
-          <button
-            onClick={onLogout}
-            style={{
-              width: '100%', padding: '8px',
-              background: '#1e293b', color: '#94a3b8',
-              border: '1px solid #334155', borderRadius: '8px',
-              cursor: 'pointer', fontSize: '12px',
-            }}
-          >
-            Sign Out
+          <button className="btn-signout" onClick={onLogout}>
+            <span>↩</span> Sign Out
           </button>
         </div>
       </aside>
 
-      {/* ── Main content ── */}
+      {/* ── MAIN CONTENT AREA ── */}
       <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         {/* Topbar */}
-        <div style={{
-          background: 'var(--card-bg)',
-          borderBottom: '1px solid var(--border)',
-          padding: '14px 28px',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        }}>
-          <div>
-            <h1 style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>
-              🚗 My Performance Dashboard
-            </h1>
-            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
-              Driver #{driverId} — Personal analytics overview
-            </p>
+        <div className="topbar">
+          <div className="topbar-left">
+            <div className="topbar-icon-wrap" style={{ background: '#dbeafe', color: '#1e40af' }}>
+              {activeTabDetails?.icon}
+            </div>
+            <div>
+              <div className="topbar-title">{activeTabDetails?.label}</div>
+              <div className="topbar-sub">{activeTabDetails?.sub} — Driver #{driverId}</div>
+            </div>
           </div>
-          <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-            EV Fleet Analytics Platform
+          <div className="topbar-right">
+            <div className="topbar-pill">
+              <span className="topbar-pill-dot" />
+              Online
+            </div>
+            <div className="topbar-date">📅 {today}</div>
           </div>
         </div>
 
-        {/* Scrollable body */}
-        <div style={{ flex: 1, overflow: 'auto', padding: '28px' }}>
+        {/* Scrollable Content Body */}
+        <div className="tab-content" style={{ flex: 1, overflow: 'auto', padding: '28px' }}>
+          
+          {/* ════════════════ OVERVIEW TAB ════════════════ */}
+          {tab === 'overview' && (
+            <>
+              {/* KPI Cards */}
+              <div className="stat-cards">
+                <div className="stat-card blue">
+                  <span className="label">Total Trips</span>
+                  <span className="value">{fmtNum(stats.totalTrips)}</span>
+                </div>
+                <div className="stat-card cyan">
+                  <span className="label">Total Distance</span>
+                  <span className="value">{fmtNum(stats.totalKm, 0)} km</span>
+                </div>
+                <div className="stat-card red">
+                  <span className="label">Overspeed Rate</span>
+                  <span className="value">{stats.overspeedPct.toFixed(1)}%</span>
+                  <span className="sub">{stats.overspeedCount} events</span>
+                </div>
+                <div className="stat-card green">
+                  <span className="label">Total Income</span>
+                  <span className="value" style={{ fontSize: '18px' }}>{fmtCurrency(stats.totalIncome)}</span>
+                </div>
+                <div className="stat-card orange">
+                  <span className="label">Total Expense</span>
+                  <span className="value" style={{ fontSize: '18px' }}>{fmtCurrency(stats.totalExpense)}</span>
+                </div>
+                <div className={`stat-card ${stats.netProfit >= 0 ? 'blue' : 'red'}`}>
+                  <span className="label">Net Earnings</span>
+                  <span className="value" style={{ fontSize: '18px' }}>{fmtCurrency(stats.netProfit)}</span>
+                </div>
+                <div className="stat-card purple">
+                  <span className="label">Workshop Visits</span>
+                  <span className="value">{stats.workshops}</span>
+                </div>
+                <div className="stat-card red">
+                  <span className="label">Breakdowns</span>
+                  <span className="value">{stats.breakdowns}</span>
+                </div>
+              </div>
 
-          {/* ── KPI Cards ── */}
-          <div className="stat-cards">
-            <div className="stat-card blue">
-              <span className="label">Total Trips</span>
-              <span className="value">{fmtNum(stats.totalTrips)}</span>
-            </div>
-            <div className="stat-card cyan">
-              <span className="label">Total Distance</span>
-              <span className="value">{fmtNum(stats.totalKm, 0)} km</span>
-            </div>
-            <div className="stat-card red">
-              <span className="label">Overspeed Rate</span>
-              <span className="value">{stats.overspeedPct.toFixed(1)}%</span>
-              <span className="sub">{stats.overspeedCount} events</span>
-            </div>
-            <div className="stat-card green">
-              <span className="label">Total Income</span>
-              <span className="value" style={{ fontSize: '18px' }}>{fmtCurrency(stats.totalIncome)}</span>
-            </div>
-            <div className="stat-card orange">
-              <span className="label">Total Expense</span>
-              <span className="value" style={{ fontSize: '18px' }}>{fmtCurrency(stats.totalExpense)}</span>
-            </div>
-            <div className={`stat-card ${stats.netProfit >= 0 ? 'blue' : 'red'}`}>
-              <span className="label">Net Earnings</span>
-              <span className="value" style={{ fontSize: '18px' }}>{fmtCurrency(stats.netProfit)}</span>
-            </div>
-            <div className="stat-card purple">
-              <span className="label">Workshop Visits</span>
-              <span className="value">{stats.workshops}</span>
-            </div>
-            <div className="stat-card red">
-              <span className="label">Breakdowns</span>
-              <span className="value">{stats.breakdowns}</span>
-            </div>
-          </div>
+              {/* Row 1: Overspeed + Distance Charts */}
+              <div className="charts-grid-2">
+                <ChartCard title="Monthly Overspeed Events" sub="Trips where you exceeded the speed limit">
+                  <ResponsiveContainer width="100%" height={240}>
+                    <BarChart data={monthlyOverspeed} margin={{ top: 5, right: 20, bottom: 20, left: 10 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip formatter={v => [v, 'Overspeed Events']} />
+                      <Bar dataKey="value" name="Overspeed Events" radius={[4, 4, 0, 0]}>
+                        {monthlyOverspeed.map((entry, i) => (
+                          <Cell key={i} fill={entry.value > 5 ? '#dc2626' : '#fca5a5'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </ChartCard>
 
-          {/* ── Row 1: Overspeed + Distance ── */}
-          <div className="charts-grid-2">
-            <ChartCard title="Monthly Overspeed Events" sub="Number of trips where you exceeded the speed limit each month">
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={monthlyOverspeed} margin={{ top: 5, right: 20, bottom: 20, left: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis
-                    dataKey="month"
-                    tick={{ fontSize: 11 }}
-                    label={{ value: 'Month', position: 'insideBottom', offset: -12, fontSize: 11 }}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 11 }}
-                    label={{ value: 'Overspeed Events', angle: -90, position: 'insideLeft', fontSize: 11 }}
-                  />
-                  <Tooltip formatter={v => [v, 'Overspeed Events']} />
-                  <Legend verticalAlign="top" />
-                  <Bar dataKey="value" name="Overspeed Events" radius={[4, 4, 0, 0]}>
-                    {monthlyOverspeed.map((entry, i) => (
-                      <Cell key={i} fill={entry.value > 5 ? '#dc2626' : '#fca5a5'} />
+                <ChartCard title="Monthly Distance Travelled (km)" sub="Total distance covered each month across your trips">
+                  <ResponsiveContainer width="100%" height={240}>
+                    <AreaChart data={monthlyDist} margin={{ top: 5, right: 20, bottom: 20, left: 10 }}>
+                      <defs>
+                        <linearGradient id="distGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip formatter={v => [fmtNum(v, 1) + ' km', 'Distance']} />
+                      <Area type="monotone" dataKey="value" name="Distance (km)" stroke="#2563eb" fill="url(#distGrad)" strokeWidth={2} dot={{ r: 4 }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </ChartCard>
+              </div>
+
+              {/* Row 2: Income vs Expense */}
+              <ChartCard title="Monthly Income vs Expense (₹)" sub="Your revenue generated vs operational costs each month" style={{ marginBottom: '20px' }}>
+                <ResponsiveContainer width="100%" height={260}>
+                  <ComposedChart data={monthlyFinance} margin={{ top: 10, right: 30, bottom: 20, left: 30 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 10 }} tickFormatter={v => '₹' + fmtNum(v / 1000) + 'k'} />
+                    <Tooltip formatter={(v, name) => [fmtCurrency(v), name]} />
+                    <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: '8px' }} />
+                    <Bar dataKey="income" name="Income (₹)" fill="#16a34a" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="expense" name="Expense (₹)" fill="#ea580c" radius={[4, 4, 0, 0]} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </ChartCard>
+
+              {/* Row 3: Recent Trips Table */}
+              <div className="chart-wrapper" style={{ overflowX: 'auto' }}>
+                <div className="chart-title">Recent Trips (Last 10)</div>
+                <div className="chart-sub">Your most recent trip records and performance logs</div>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      {['Date', 'Vehicle', 'Distance (km)', 'Speed (km/h)', 'Overspeed', 'Passengers', 'Income (₹)', 'Expense (₹)', 'Workshop', 'Breakdown'].map(h => (
+                        <th key={h}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentTrips.map((trip, i) => (
+                      <tr key={i}>
+                        <td style={{ whiteSpace: 'nowrap' }}>{trip.Date}</td>
+                        <td style={{ fontWeight: '700' }}>{trip.Vehicle_ID}</td>
+                        <td>{Number(trip.Distance_Travelled_km || 0).toFixed(1)}</td>
+                        <td>{Number(trip.Speed_kmph || 0).toFixed(1)}</td>
+                        <td>
+                          <span className={`badge ${trip.Overspeed === 'Yes' ? 'badge-red' : 'badge-green'}`}>
+                            {trip.Overspeed === 'Yes' ? 'Yes' : 'No'}
+                          </span>
+                        </td>
+                        <td>{trip.Passenger_Count}</td>
+                        <td style={{ color: 'var(--success)', fontWeight: '600' }}>{fmtCurrency(parseFloat(trip.Income_Generated) || 0)}</td>
+                        <td style={{ color: 'var(--warning)', fontWeight: '600' }}>{fmtCurrency(parseFloat(trip.Total_Expense) || 0)}</td>
+                        <td>
+                          <span className={`badge ${trip.Workshop_Visit === 'Yes' ? 'badge-orange' : 'badge-green'}`}>
+                            {trip.Workshop_Visit === 'Yes' ? 'Yes' : 'No'}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`badge ${trip.Breakdown === 'Yes' ? 'badge-red' : 'badge-green'}`}>
+                            {trip.Breakdown === 'Yes' ? 'Yes' : 'No'}
+                          </span>
+                        </td>
+                      </tr>
                     ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
+                    {recentTrips.length === 0 && (
+                      <tr>
+                        <td colSpan={10} style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                          No trip data found for Driver #{driverId}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
 
-            <ChartCard title="Monthly Distance Travelled (km)" sub="Total distance covered each month across all your trips">
-              <ResponsiveContainer width="100%" height={240}>
-                <AreaChart data={monthlyDist} margin={{ top: 5, right: 20, bottom: 20, left: 10 }}>
-                  <defs>
-                    <linearGradient id="distGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis
-                    dataKey="month"
-                    tick={{ fontSize: 11 }}
-                    label={{ value: 'Month', position: 'insideBottom', offset: -12, fontSize: 11 }}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 11 }}
-                    label={{ value: 'Distance (km)', angle: -90, position: 'insideLeft', fontSize: 11 }}
-                  />
-                  <Tooltip formatter={v => [fmtNum(v, 1) + ' km', 'Distance']} />
-                  <Legend verticalAlign="top" />
-                  <Area type="monotone" dataKey="value" name="Distance (km)" stroke="#2563eb" fill="url(#distGrad)" strokeWidth={2} dot={{ r: 4 }} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </ChartCard>
-          </div>
+          {/* ════════════════ DISTANCE TRAVELLED TAB ════════════════ */}
+          {tab === 'distance' && (
+            <>
+              {/* KPI Cards */}
+              <div className="stat-cards">
+                <div className="stat-card blue">
+                  <span className="label">Total Distance Travelled</span>
+                  <span className="value">{fmtNum(stats.totalKm, 0)} km</span>
+                  <span className="sub">Across all trips</span>
+                </div>
+                <div className="stat-card cyan">
+                  <span className="label">Avg Distance / Trip</span>
+                  <span className="value">{avgTripDist.toFixed(1)} km</span>
+                  <span className="sub">Mean per driving record</span>
+                </div>
+                <div className="stat-card purple">
+                  <span className="label">Longest Single Trip</span>
+                  <span className="value">{maxTripDist.toFixed(1)} km</span>
+                  <span className="sub">Personal record distance</span>
+                </div>
+                <div className="stat-card green">
+                  <span className="label">Active Driving Trips</span>
+                  <span className="value">{tripDistanceHistory.length}</span>
+                  <span className="sub">Recorded runs</span>
+                </div>
+              </div>
 
-          {/* ── Row 2: Income vs Expense ── */}
-          <ChartCard title="Monthly Income vs Expense (₹)" sub="Your revenue generated vs operational costs each month">
-            <ResponsiveContainer width="100%" height={260}>
-              <ComposedChart data={monthlyFinance} margin={{ top: 10, right: 30, bottom: 20, left: 30 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis
-                  dataKey="month"
-                  tick={{ fontSize: 11 }}
-                  label={{ value: 'Month', position: 'insideBottom', offset: -12, fontSize: 11 }}
-                />
-                <YAxis
-                  tick={{ fontSize: 10 }}
-                  tickFormatter={v => '₹' + fmtNum(v / 1000) + 'k'}
-                  label={{ value: 'Amount (₹)', angle: -90, position: 'insideLeft', offset: -15, fontSize: 11 }}
-                />
-                <Tooltip formatter={(v, name) => [fmtCurrency(v), name]} />
-                <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: '8px' }} />
-                <Bar dataKey="income" name="Income (₹)" fill="#16a34a" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="expense" name="Expense (₹)" fill="#ea580c" radius={[4, 4, 0, 0]} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </ChartCard>
+              {/* Distance Charts */}
+              <div className="charts-grid-2">
+                <ChartCard title="Monthly Distance Profile" sub="Total kilometers logged per calendar month">
+                  <ResponsiveContainer width="100%" height={260}>
+                    <AreaChart data={monthlyDist} margin={{ top: 5, right: 20, bottom: 20, left: 10 }}>
+                      <defs>
+                        <linearGradient id="distColor" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#0891b2" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#0891b2" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis dataKey="month" />
+                      <YAxis label={{ value: 'Distance (km)', angle: -90, position: 'insideLeft', fontSize: 11 }} />
+                      <Tooltip formatter={v => [fmtNum(v, 1) + ' km', 'Distance']} />
+                      <Area type="monotone" dataKey="value" stroke="#0891b2" fill="url(#distColor)" strokeWidth={2} dot={{ r: 4 }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </ChartCard>
 
-          {/* ── Row 3: Workshop + Breakdown ── */}
-          <div className="charts-grid-2">
-            <ChartCard title="Monthly Workshop Visits" sub="Number of maintenance visits per month">
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={monthlyWorkshop} margin={{ top: 5, right: 20, bottom: 20, left: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis
-                    dataKey="month"
-                    tick={{ fontSize: 11 }}
-                    label={{ value: 'Month', position: 'insideBottom', offset: -12, fontSize: 11 }}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 11 }}
-                    label={{ value: 'Visits', angle: -90, position: 'insideLeft', fontSize: 11 }}
-                  />
-                  <Tooltip formatter={v => [v, 'Workshop Visits']} />
-                  <Legend verticalAlign="top" />
-                  <Bar dataKey="value" name="Workshop Visits" fill="#7c3aed" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
+                <ChartCard title="Trip-by-Trip Distance Progress" sub="Distance logged in each of the last 15 active runs">
+                  <ResponsiveContainer width="100%" height={260}>
+                    <LineChart data={tripDistanceHistory} margin={{ top: 5, right: 20, bottom: 20, left: 10 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis dataKey="tripIndex" tick={{ fontSize: 10 }} />
+                      <YAxis label={{ value: 'km', angle: -90, position: 'insideLeft', fontSize: 11 }} />
+                      <Tooltip formatter={(v, name, props) => [v + ' km', `${props.payload.date}`]} />
+                      <Line type="monotone" dataKey="distance" stroke="#2563eb" strokeWidth={2} activeDot={{ r: 6 }} dot={{ r: 4 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </ChartCard>
+              </div>
 
-            <ChartCard title="Monthly Breakdown Events" sub="Number of breakdowns reported per month">
-              <ResponsiveContainer width="100%" height={240}>
-                <LineChart data={monthlyBreakdown} margin={{ top: 5, right: 20, bottom: 20, left: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis
-                    dataKey="month"
-                    tick={{ fontSize: 11 }}
-                    label={{ value: 'Month', position: 'insideBottom', offset: -12, fontSize: 11 }}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 11 }}
-                    label={{ value: 'Breakdowns', angle: -90, position: 'insideLeft', fontSize: 11 }}
-                  />
-                  <Tooltip formatter={v => [v, 'Breakdown Events']} />
-                  <Legend verticalAlign="top" />
-                  <Line type="monotone" dataKey="value" name="Breakdown Events" stroke="#dc2626" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </ChartCard>
-          </div>
+              {/* Longest Trips Table */}
+              <div className="chart-wrapper" style={{ overflowX: 'auto', marginTop: '20px' }}>
+                <div className="chart-title">🏆 Longest Trips (Top 5)</div>
+                <div className="chart-sub">Your top distance records listed in descending order</div>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      {['Date', 'Vehicle ID', 'Distance (km)', 'Avg Speed (km/h)', 'Road Type', 'Income (₹)', 'Expense (₹)'].map(h => (
+                        <th key={h}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {longestTrips.map((trip, idx) => (
+                      <tr key={idx}>
+                        <td>{trip.Date}</td>
+                        <td style={{ fontWeight: '700' }}>{trip.Vehicle_ID}</td>
+                        <td style={{ fontWeight: '600', color: 'var(--primary)' }}>{Number(trip.Distance_Travelled_km || 0).toFixed(1)} km</td>
+                        <td>{Number(trip.Speed_kmph || 0).toFixed(1)}</td>
+                        <td>
+                          <span className={`badge ${trip.Road_Type === 'Highway' ? 'badge-blue' : trip.Road_Type === 'City' ? 'badge-green' : 'badge-orange'}`}>
+                            {trip.Road_Type}
+                          </span>
+                        </td>
+                        <td style={{ color: 'var(--success)' }}>{fmtCurrency(parseFloat(trip.Income_Generated) || 0)}</td>
+                        <td style={{ color: 'var(--warning)' }}>{fmtCurrency(parseFloat(trip.Total_Expense) || 0)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
 
-          {/* ── Recent Trips Table ── */}
-          <div className="chart-wrapper" style={{ overflowX: 'auto' }}>
-            <div className="chart-title">Recent Trips (Last 10)</div>
-            <div className="chart-sub">Your most recent trip records with key performance indicators</div>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  {['Date', 'Vehicle', 'Distance (km)', 'Speed (km/h)', 'Overspeed', 'Passengers', 'Income (₹)', 'Expense (₹)', 'Workshop', 'Breakdown'].map(h => (
-                    <th key={h}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {recentTrips.map((trip, i) => (
-                  <tr key={i}>
-                    <td style={{ whiteSpace: 'nowrap' }}>{trip.Date}</td>
-                    <td style={{ fontWeight: '700' }}>{trip.Vehicle_ID}</td>
-                    <td>{Number(trip.Distance_Travelled_km || 0).toFixed(1)}</td>
-                    <td>{Number(trip.Speed_kmph || 0).toFixed(1)}</td>
-                    <td><span className={`badge ${trip.Overspeed === 'Yes' ? 'badge-red' : 'badge-green'}`}>{trip.Overspeed === 'Yes' ? 'Yes' : 'No'}</span></td>
-                    <td>{trip.Passenger_Count}</td>
-                    <td style={{ color: 'var(--success)', fontWeight: '600' }}>{fmtCurrency(parseFloat(trip.Income_Generated) || 0)}</td>
-                    <td style={{ color: 'var(--warning)', fontWeight: '600' }}>{fmtCurrency(parseFloat(trip.Total_Expense) || 0)}</td>
-                    <td><span className={`badge ${trip.Workshop_Visit === 'Yes' ? 'badge-orange' : 'badge-green'}`}>{trip.Workshop_Visit === 'Yes' ? 'Yes' : 'No'}</span></td>
-                    <td><span className={`badge ${trip.Breakdown === 'Yes' ? 'badge-red' : 'badge-green'}`}>{trip.Breakdown === 'Yes' ? 'Yes' : 'No'}</span></td>
-                  </tr>
-                ))}
-                {recentTrips.length === 0 && (
-                  <tr>
-                    <td colSpan={10} style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                      No trip data found for Driver #{driverId}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          {/* ════════════════ BATTERY & CHARGE TAB ════════════════ */}
+          {tab === 'battery' && (
+            <>
+              {/* KPI Cards */}
+              <div className="stat-cards">
+                <div className="stat-card green">
+                  <span className="label">Current Charge</span>
+                  <span className="value" style={{ color: latestBattery < 20 ? 'var(--danger)' : 'var(--success)' }}>
+                    {latestBattery.toFixed(1)}%
+                  </span>
+                  <span className="sub">State of Charge (latest)</span>
+                </div>
+                <div className="stat-card cyan">
+                  <span className="label">Remaining Range</span>
+                  <span className="value">{latestRange.toFixed(0)} km</span>
+                  <span className="sub">Estimated travel limit</span>
+                </div>
+                <div className="stat-card blue">
+                  <span className="label">Battery Health</span>
+                  <span className="value">{latestHealth}%</span>
+                  <span className="sub">Max capacity capacity retention</span>
+                </div>
+                <div className="stat-card orange">
+                  <span className="label">Total Charge Cycles</span>
+                  <span className="value">{latestCycle}</span>
+                  <span className="sub">Cycles completed</span>
+                </div>
+              </div>
+
+              {/* Status Banner */}
+              <div className="vehicle-banner" style={{ background: currentStatus === 'Charging' ? 'linear-gradient(135deg, #0284c7, #0369a1)' : 'linear-gradient(135deg, #1e293b, #334155)', boxShadow: 'none', marginBottom: '20px' }}>
+                <div className="vehicle-banner-item">
+                  <div className="vehicle-banner-label">Vehicle Status</div>
+                  <div className="vehicle-banner-value">⚡ {currentStatus}</div>
+                </div>
+                <div className="vehicle-banner-item">
+                  <div className="vehicle-banner-label">Battery Capacity</div>
+                  <div className="vehicle-banner-value">{latestRecord.Battery_Capacity_kWh || '—'} kWh</div>
+                </div>
+                <div className="vehicle-banner-item">
+                  <div className="vehicle-banner-label">Health Status</div>
+                  <div className="vehicle-banner-value">{latestHealth >= 90 ? '🟢 Excellent' : latestHealth >= 80 ? '🟡 Good' : '🔴 Service Required'}</div>
+                </div>
+              </div>
+
+              {/* Charts */}
+              <div className="charts-grid-2">
+                <ChartCard title="Battery SoC saw-tooth (Last 25 logs)" sub="Saw-tooth pattern showing battery draining and charging events chronologically">
+                  <ResponsiveContainer width="100%" height={260}>
+                    <LineChart data={batteryHistory} margin={{ top: 5, right: 20, bottom: 20, left: 10 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis dataKey="timeLabel" tick={{ fontSize: 9 }} />
+                      <YAxis domain={[0, 100]} label={{ value: 'SoC %', angle: -90, position: 'insideLeft', fontSize: 11 }} />
+                      <Tooltip formatter={(v, name, props) => [`${v}% (${props.payload.status})`, 'SoC']} />
+                      <Line type="monotone" dataKey="battery" stroke="#16a34a" strokeWidth={2.5} dot={(props) => {
+                        const { cx, cy, payload } = props
+                        if (payload.status === 'Charging') {
+                          return <circle key={cx} cx={cx} cy={cy} r={5} fill="#2563eb" stroke="#fff" strokeWidth={1} />
+                        }
+                        return <circle key={cx} cx={cx} cy={cy} r={3} fill="#16a34a" />
+                      }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </ChartCard>
+
+                <ChartCard title="Energy Consumed (kWh) per Month" sub="Monthly energy pulled from battery pack for driving">
+                  <ResponsiveContainer width="100%" height={260}>
+                    <BarChart data={monthlyEnergy} margin={{ top: 5, right: 20, bottom: 20, left: 10 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis dataKey="month" />
+                      <YAxis label={{ value: 'kWh', angle: -90, position: 'insideLeft', fontSize: 11 }} />
+                      <Tooltip formatter={v => [v + ' kWh', 'Energy Consumed']} />
+                      <Bar dataKey="value" name="Energy Consumed" fill="#ea580c" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </ChartCard>
+              </div>
+
+              {/* Recent Charging Events */}
+              <div className="chart-wrapper" style={{ overflowX: 'auto', marginTop: '20px' }}>
+                <div className="chart-title">🔌 Recent Charging Sessions</div>
+                <div className="chart-sub">List of recent charging state logs recorded for your vehicle</div>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      {['Date', 'Time', 'Vehicle ID', 'Battery Level', 'Charge Cycles', 'Odometer Reading (km)'].map(h => (
+                        <th key={h}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {chargingSessions.map((session, idx) => (
+                      <tr key={idx}>
+                        <td>{session.Date}</td>
+                        <td>{session.Time}</td>
+                        <td style={{ fontWeight: '700' }}>{session.Vehicle_ID}</td>
+                        <td style={{ fontWeight: '600', color: 'var(--primary)' }}>⚡ {Number(session.Battery_Percentage).toFixed(1)}%</td>
+                        <td>{session.Charge_Cycle_Count}</td>
+                        <td>{fmtNum(session.Odometer_km)} km</td>
+                      </tr>
+                    ))}
+                    {chargingSessions.length === 0 && (
+                      <tr>
+                        <td colSpan={6} style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                          No charging events logged in history.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          {/* ════════════════ VEHICLE SPECS TAB ════════════════ */}
+          {tab === 'vehicle' && (
+            <>
+              {/* Main Spec Banner */}
+              <div className="vehicle-banner" style={{ padding: '28px 34px', marginBottom: '28px' }}>
+                <div style={{ flex: 1, minWidth: '250px' }}>
+                  <span className="badge" style={{ background: 'rgba(255, 255, 255, 0.15)', color: '#fff', marginBottom: '10px', textTransform: 'uppercase' }}>
+                    Assigned Fleet Unit
+                  </span>
+                  <h2 style={{ fontSize: '28px', fontWeight: '800', margin: '0 0 6px' }}>
+                    {latestRecord.Brand} {latestRecord.Vehicle_Model}
+                  </h2>
+                  <p style={{ margin: 0, opacity: 0.8, fontSize: '13px' }}>
+                    Vehicle Registration ID: <strong>{latestRecord.Vehicle_ID}</strong> · Category: {latestRecord.Category}
+                  </p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '30px', flexWrap: 'wrap', marginTop: '16px' }}>
+                  <div style={{ borderLeft: '2px solid rgba(255, 255, 255, 0.25)', paddingLeft: '18px' }}>
+                    <div style={{ fontSize: '10px', opacity: 0.7, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Odometer</div>
+                    <div style={{ fontSize: '22px', fontWeight: '800' }}>{latestRecord.Odometer_km ? fmtNum(latestRecord.Odometer_km) + ' km' : '—'}</div>
+                  </div>
+                  <div style={{ borderLeft: '2px solid rgba(255, 255, 255, 0.25)', paddingLeft: '18px' }}>
+                    <div style={{ fontSize: '10px', opacity: 0.7, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Battery Health</div>
+                    <div style={{ fontSize: '22px', fontWeight: '800', color: '#4ade80' }}>{latestHealth}%</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Technical Spec Grid */}
+              <div className="charts-grid-2">
+                <div className="chart-wrapper">
+                  <div className="chart-title">Technical Specifications</div>
+                  <div className="chart-sub">Manufacturer factory details of the current EV</div>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '10px' }}>
+                    {[
+                      { label: 'Manufacturer / Brand', value: latestRecord.Brand },
+                      { label: 'Model Name', value: latestRecord.Vehicle_Model },
+                      { label: 'Vehicle Class', value: latestRecord.Category },
+                      { label: 'Battery Capacity (kWh)', value: latestRecord.Battery_Capacity_kWh ? latestRecord.Battery_Capacity_kWh + ' kWh' : '—' },
+                      { label: 'Motor Rating (kW)', value: latestRecord.Motor_Spec_kW ? latestRecord.Motor_Spec_kW + ' kW' : '—' },
+                      { label: 'Curb Weight (kg)', value: latestRecord.Vehicle_Weight_kg ? fmtNum(latestRecord.Vehicle_Weight_kg) + ' kg' : '—' },
+                      { label: 'Factory Rated Max Range', value: latestRecord.Max_Range_km ? latestRecord.Max_Range_km + ' km' : '—' }
+                    ].map((spec, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)', paddingBottom: '8px' }}>
+                        <span style={{ color: 'var(--text-secondary)', fontWeight: '500' }}>{spec.label}</span>
+                        <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>{spec.value || '—'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="chart-wrapper" style={{ display: 'flex', flexDirection: 'column', justifyItems: 'center' }}>
+                  <div className="chart-title">Battery Health Profile</div>
+                  <div className="chart-sub">SOH (State of Health) details & capacity summary</div>
+                  
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px 0' }}>
+                    <div style={{
+                      width: '140px', height: '140px',
+                      borderRadius: '50%',
+                      background: `conic-gradient(#16a34a ${latestHealth}%, #e2e8f0 0)`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      position: 'relative',
+                      boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.05)'
+                    }}>
+                      <div style={{
+                        width: '116px', height: '116px',
+                        borderRadius: '50%',
+                        background: 'var(--card-bg)',
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
+                      }}>
+                        <span style={{ fontSize: '26px', fontWeight: '800', color: 'var(--text-primary)' }}>{latestHealth}%</span>
+                        <span style={{ fontSize: '9px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: '2px' }}>SOH Status</span>
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: '24px', textAlign: 'center', maxWidth: '300px' }}>
+                      <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-primary)' }}>
+                        {latestHealth >= 90 ? '🔋 Excellent Battery Health' : latestHealth >= 80 ? '🔋 Good Battery Health' : '⚠️ Battery Degraded'}
+                      </div>
+                      <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '6px', lineHeight: 1.4 }}>
+                        Your battery health is sitting at {latestHealth}%. Capacity retention is optimal for normal operational ranges.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ════════════════ ROAD PERFORMANCE TAB ════════════════ */}
+          {tab === 'road' && (
+            <>
+              {/* KPI Cards */}
+              <div className="stat-cards">
+                <div className="stat-card blue">
+                  <span className="label">Highway Share</span>
+                  <span className="value">
+                    {(() => {
+                      const highway = roadAnalytics.find(r => r.type === 'Highway')?.distance || 0
+                      return stats.totalKm > 0 ? ((highway / stats.totalKm) * 100).toFixed(1) + '%' : '0%'
+                    })()}
+                  </span>
+                  <span className="sub">Of total distance driven</span>
+                </div>
+                <div className="stat-card green">
+                  <span className="label">City Share</span>
+                  <span className="value">
+                    {(() => {
+                      const city = roadAnalytics.find(r => r.type === 'City')?.distance || 0
+                      return stats.totalKm > 0 ? ((city / stats.totalKm) * 100).toFixed(1) + '%' : '0%'
+                    })()}
+                  </span>
+                  <span className="sub">Of total distance driven</span>
+                </div>
+                <div className="stat-card orange">
+                  <span className="label">Overspeed Risks</span>
+                  <span className="value">
+                    {countWhere(dRows, r => r.Overspeed === 'Yes' && (r.Road_Type === 'City' || r.Road_Type === 'Highway'))}
+                  </span>
+                  <span className="sub">City / Highway warnings</span>
+                </div>
+                <div className="stat-card purple">
+                  <span className="label">Optimal Efficiency</span>
+                  <span className="value" style={{ fontSize: '18px' }}>
+                    {(() => {
+                      const valid = roadAnalytics.filter(r => r.efficiency > 0)
+                      if (!valid.length) return '—'
+                      const best = [...valid].sort((a, b) => a.efficiency - b.efficiency)[0]
+                      return `${best.efficiency.toFixed(0)} Wh/km (${best.type})`
+                    })()}
+                  </span>
+                  <span className="sub">Lowest energy consumption</span>
+                </div>
+              </div>
+
+              {/* Road Type Charts */}
+              <div className="charts-grid-2">
+                <ChartCard title="Distance breakdown by Road Type (km)" sub="Proportion of driving distance split across City, Highway & Mixed environments">
+                  {roadTypePieData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={260}>
+                      <PieChart>
+                        <Pie
+                          data={roadTypePieData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={95}
+                          paddingAngle={3}
+                          dataKey="value"
+                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        >
+                          {roadTypePieData.map((entry, idx) => (
+                            <Cell key={idx} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={v => [v + ' km', 'Distance']} />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="no-data">No distance details logged.</div>
+                  )}
+                </ChartCard>
+
+                <ChartCard title="Energy Efficiency (Wh/km)" sub="Average energy consumed in Wh per kilometer (lower is more efficient)">
+                  <ResponsiveContainer width="100%" height={260}>
+                    <BarChart data={roadAnalytics} margin={{ top: 10, right: 20, bottom: 5, left: 10 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis dataKey="type" />
+                      <YAxis label={{ value: 'Wh / km', angle: -90, position: 'insideLeft', fontSize: 11 }} />
+                      <Tooltip formatter={v => [Number(v).toFixed(0) + ' Wh/km', 'Energy Rate']} />
+                      <Bar dataKey="efficiency" name="Efficiency (Wh/km)" radius={[4, 4, 0, 0]}>
+                        {roadAnalytics.map((entry, idx) => (
+                          <Cell key={idx} fill={entry.type === 'City' ? '#16a34a' : entry.type === 'Highway' ? '#2563eb' : '#ea580c'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </ChartCard>
+              </div>
+
+              {/* Comparative Table */}
+              <div className="chart-wrapper" style={{ overflowX: 'auto', marginTop: '20px' }}>
+                <div className="chart-title">Road Type Comparison Table</div>
+                <div className="chart-sub">Core performance and energy efficiency differences across driving environments</div>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      {['Road Type', 'Trips Count', 'Total Distance (km)', 'Avg Speed (km/h)', 'Overspeed Warnings', 'Avg Efficiency (Wh/km)'].map(h => (
+                        <th key={h}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {roadAnalytics.map((row) => (
+                      <tr key={row.type}>
+                        <td style={{ fontWeight: '700' }}>{row.type}</td>
+                        <td>{row.tripsCount}</td>
+                        <td>{row.distance.toFixed(1)} km</td>
+                        <td>{row.avgSpeed.toFixed(1)} km/h</td>
+                        <td>
+                          <span className={`badge ${row.overspeedCount > 0 ? 'badge-red' : 'badge-green'}`}>
+                            {row.overspeedCount} events
+                          </span>
+                        </td>
+                        <td style={{ fontWeight: '600', color: 'var(--primary)' }}>
+                          {row.efficiency > 0 ? `${row.efficiency.toFixed(0)} Wh/km` : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
 
         </div>
       </main>
@@ -371,9 +835,9 @@ export default function DriverDashboard({ user, onLogout }) {
   )
 }
 
-function ChartCard({ title, sub, children }) {
+function ChartCard({ title, sub, children, style }) {
   return (
-    <div className="chart-wrapper" style={{ marginBottom: '20px' }}>
+    <div className="chart-wrapper" style={{ ...style }}>
       <div className="chart-title">{title}</div>
       {sub && <div className="chart-sub">{sub}</div>}
       {children}
