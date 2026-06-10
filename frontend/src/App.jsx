@@ -51,7 +51,9 @@ export default function App() {
     return <Login onLogin={setUser} data={data} />
   }
 
-  // Scope data to the logged-in admin's records only
+  // Scope data per role:
+  // Admins see only their assigned 10 vehicles/drivers
+  // Drivers see only their own records
   const scopedData = user.role === 'admin'
     ? data.filter(r => r.Admin_ID === user.id)
     : data.filter(r => String(r.Driver_ID) === String(user.id))

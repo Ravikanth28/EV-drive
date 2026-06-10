@@ -54,7 +54,7 @@ export default function AdminDashboard({ user, onLogout }) {
             <div className="sidebar-user-avatar">🛡️</div>
             <div>
               <div className="sidebar-user-name">Admin {user.id}</div>
-              <div className="sidebar-user-role">Full access · 10 drivers</div>
+              <div className="sidebar-user-role">Fleet Manager · 10 vehicles</div>
             </div>
           </div>
           <button className="btn-signout" onClick={onLogout}>

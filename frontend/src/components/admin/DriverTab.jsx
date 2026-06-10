@@ -6,7 +6,7 @@ import {
 import { DataContext } from '../../App'
 import {
   uniqueValues, groupBy, monthlyAgg, countWhere,
-  fmtNum, fmtCurrency, sumBy, avgBy,
+  fmtNum, fmtCurrency, sumBy, avgBy, driverName,
 } from '../../utils/dataUtils'
 
 export default function DriverTab() {
@@ -80,7 +80,7 @@ export default function DriverTab() {
             <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Select Driver</label>
             <select className="select" value={selectedDriver} onChange={e => setDriver(e.target.value)}>
               {driverIds.map(d => (
-                <option key={d} value={d}>Driver {d}</option>
+                <option key={d} value={d}>{driverName(d)} (#{d})</option>
               ))}
             </select>
           </div>

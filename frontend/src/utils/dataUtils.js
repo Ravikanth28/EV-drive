@@ -1,3 +1,21 @@
+// ── Driver name map (ID 1–40 → Indian name) ───────────────────────────────
+export const DRIVER_NAMES = {
+   1: 'Arjun',      2: 'Pratheeban', 3: 'Harish',    4: 'Ravikanth',
+   5: 'Karthik',    6: 'Surya',      7: 'Vishnu',     8: 'Deepak',
+   9: 'Manoj',     10: 'Arun',      11: 'Rahul',     12: 'Vikram',
+  13: 'Sanjay',    14: 'Naveen',    15: 'Dinesh',    16: 'Suresh',
+  17: 'Ramesh',    18: 'Balaji',    19: 'Prashanth', 20: 'Gopal',
+  21: 'Anand',     22: 'Rajesh',    23: 'Muthukumar',24: 'Senthil',
+  25: 'Ajith',     26: 'Vignesh',   27: 'Ashwin',    28: 'Bharath',
+  29: 'Ganesh',    30: 'Lokesh',    31: 'Mohan',     32: 'Nithish',
+  33: 'Pavan',     34: 'Rohit',     35: 'Sathish',   36: 'Thilak',
+  37: 'Udhay',     38: 'Varun',     39: 'Yashwanth', 40: 'Zubair',
+}
+
+export function driverName(id) {
+  return DRIVER_NAMES[Number(id)] ?? `Driver ${id}`
+}
+
 // ── Date helpers ─────────────────────────────────────────────────────────────
 export function getMonthKey(dateStr) {
   if (!dateStr) return null

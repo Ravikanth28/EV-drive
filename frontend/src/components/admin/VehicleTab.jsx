@@ -6,14 +6,51 @@ import {
 import { DataContext } from '../../App'
 import {
   uniqueValues, monthlyAgg, countWhere, sumBy, avgBy,
-  fmtNum, fmtCurrency, COLORS, groupBy,
+  fmtNum, fmtCurrency, COLORS, groupBy, driverName,
 } from '../../utils/dataUtils'
+
+// ── Car images imported directly so Vite bundles them ─────────────────────
+import imgTiagoEV      from '../../assets/cars/tiagoev.png'
+import imgPunchEV      from '../../assets/cars/punchev.png'
+import imgHarrierEV    from '../../assets/cars/harrierev.png'
+import imgXUV400EV     from '../../assets/cars/xuv400.png'
+import imgXEV9e        from '../../assets/cars/xev9e.png'
+import imgBE6          from '../../assets/cars/be6.png'
+import imgEQS          from '../../assets/cars/eqs.png'
+import imgEQSSUV       from '../../assets/cars/eqssuv.png'
+
+const CAR_IMAGES = {
+  'Tata Tiago EV':      imgTiagoEV,
+  'Tata Punch EV':      imgPunchEV,
+  'Tata Harrier EV':    imgHarrierEV,
+  'Mahindra XUV400 EV': imgXUV400EV,
+  'Mahindra XEV 9e':    imgXEV9e,
+  'Mahindra BE 6':      imgBE6,
+  'Mercedes EQS':       imgEQS,
+  'Mercedes EQS SUV':   imgEQSSUV,
+}
+
+const BRAND_GRADIENTS = {
+  'Mahindra':  'linear-gradient(135deg, #ffffff 0%, #ffffff 100%)',
+  'Mercedes':  'linear-gradient(135deg, #ffffff 0%, #ffffff 100%)',
+  'Tata':      'linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%)',
+}
+
+const STATUS_META = {
+  Running:  { color: '#16a34a', bg: '#dcfce7', label: '● Running'  },
+  Charging: { color: '#0891b2', bg: '#cffafe', label: '⚡ Charging' },
+  Workshop: { color: '#ea580c', bg: '#ffedd5', label: '🔧 Workshop' },
+}
 
 export default function VehicleTab() {
   const data = useContext(DataContext)
   const vehicleIds = useMemo(() => uniqueValues(data, 'Vehicle_ID'), [data])
   const [selectedVehicle, setVehicle] = useState(vehicleIds[0] ?? '')
-  const [activeView, setActiveView] = useState('fleet') // 'fleet' | 'overview' | 'brand'
+  const [activeView, setActiveView] = useState('cards') // 'cards' | 'fleet' | 'overview' | 'brand'
+  const [cardFilter, setCardFilter]   = useState('all')
+  const [cardSearch, setCardSearch]   = useState('')
+  const [cardBrand, setCardBrand]     = useState('all')
+  const [cardModel, setCardModel]     = useState('all')
 
   // ── Fleet Status: latest status per vehicle ────────────────────────────────
   const vehicleLatestStatus = useMemo(() => {
@@ -31,10 +68,14 @@ export default function VehicleTab() {
         model: latest.Vehicle_Model || '—',
         category: latest.Category || '—',
         status: latest.Vehicle_Status || 'Unknown',
-        driver: latest.Driver_ID ? `Driver ${latest.Driver_ID}` : '—',
+        driver: latest.Driver_ID ? driverName(latest.Driver_ID) : '—',
         driverRaw: latest.Driver_ID || '',
         battery: latest.Battery_Percentage != null ? parseFloat(latest.Battery_Percentage) : null,
         lastDate: latest.Date || '',
+        maxRange: latest.Max_Range_km ? parseFloat(latest.Max_Range_km) : null,
+        batteryCapacity: latest.Battery_Capacity_kWh ? parseFloat(latest.Battery_Capacity_kWh) : null,
+        motorKw: latest.Motor_Spec_kW ? parseFloat(latest.Motor_Spec_kW) : null,
+        remainingRange: latest.Remaining_Range_km ? parseFloat(latest.Remaining_Range_km) : null,
       }
     })
   }, [data])
@@ -53,6 +94,32 @@ export default function VehicleTab() {
     ].filter(s => s.value > 0)
   }, [vehicleLatestStatus])
 
+  // ── Unique brands & models for dropdowns ──────────────────────────────────
+  const allBrands = useMemo(() =>
+    ['all', ...Array.from(new Set(vehicleLatestStatus.map(v => v.brand))).sort()],
+    [vehicleLatestStatus]
+  )
+  const allModels = useMemo(() => {
+    const source = cardBrand === 'all' ? vehicleLatestStatus : vehicleLatestStatus.filter(v => v.brand === cardBrand)
+    return ['all', ...Array.from(new Set(source.map(v => v.model))).sort()]
+  }, [vehicleLatestStatus, cardBrand])
+
+  // ── Filtered fleet cards ───────────────────────────────────────────────────
+  const filteredFleetCards = useMemo(() => {
+    const q = cardSearch.toLowerCase()
+    return vehicleLatestStatus.filter(v => {
+      const matchStatus = cardFilter === 'all' || v.status === cardFilter
+      const matchBrand  = cardBrand  === 'all' || v.brand  === cardBrand
+      const matchModel  = cardModel  === 'all' || v.model  === cardModel
+      const matchSearch = !q ||
+        v.vehicle.toLowerCase().includes(q) ||
+        v.model.toLowerCase().includes(q)   ||
+        v.brand.toLowerCase().includes(q)   ||
+        v.category.toLowerCase().includes(q)
+      return matchStatus && matchBrand && matchModel && matchSearch
+    })
+  }, [vehicleLatestStatus, cardFilter, cardBrand, cardModel, cardSearch])
+
   // ── Driver-wise table ──────────────────────────────────────────────────────
   const [driverSortKey, setDriverSortKey] = useState('driverRaw')
   const [driverSortDir, setDriverSortDir] = useState('asc')
@@ -62,6 +129,7 @@ export default function VehicleTab() {
     return Object.entries(byDriver).map(([did, vehicles]) => ({
       driver: `Driver ${did}`,
       driverRaw: Number(did) || did,
+      driverName: driverName(did),
       total: vehicles.length,
       running: vehicles.filter(v => v.status === 'Running').length,
       charging: vehicles.filter(v => v.status === 'Charging').length,
@@ -195,6 +263,7 @@ export default function VehicleTab() {
         <div className="page-header-right">
           <div className="view-toggle">
             {[
+              { key: 'cards',    label: '🃏 Fleet Cards'   },
               { key: 'fleet',    label: '🚦 Fleet Status' },
               { key: 'overview', label: '🚗 Vehicle View' },
               { key: 'brand',    label: '🏷️ Brand View'   },
@@ -216,6 +285,164 @@ export default function VehicleTab() {
           )}
         </div>
       </div>
+
+      {/* ── FLEET CARDS VIEW ── */}
+      {activeView === 'cards' && (
+        <>
+          {/* Filter bar */}
+          <div className="fleet-cards-bar">
+            <div className="fleet-cards-filters">
+              {['all', 'Running', 'Charging', 'Workshop'].map(f => (
+                <button
+                  key={f}
+                  className={`fleet-filter-btn${cardFilter === f ? ' active' : ''}`}
+                  style={cardFilter === f && f !== 'all' ? { borderColor: STATUS_META[f]?.color, color: STATUS_META[f]?.color } : {}}
+                  onClick={() => setCardFilter(f)}
+                >
+                  {f === 'all' ? `All (${vehicleLatestStatus.length})` :
+                   f === 'Running'  ? `🟢 Running (${vehicleLatestStatus.filter(v => v.status === 'Running').length})` :
+                   f === 'Charging' ? `⚡ Charging (${vehicleLatestStatus.filter(v => v.status === 'Charging').length})` :
+                                      `🔧 Workshop (${vehicleLatestStatus.filter(v => v.status === 'Workshop').length})`}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              {/* Brand filter */}
+              <select
+                className="select"
+                style={{ fontSize: '12.5px', padding: '6px 12px', borderRadius: '20px', minWidth: '130px' }}
+                value={cardBrand}
+                onChange={e => { setCardBrand(e.target.value); setCardModel('all') }}
+              >
+                {allBrands.map(b => (
+                  <option key={b} value={b}>{b === 'all' ? '🏷️ All Brands' : b}</option>
+                ))}
+              </select>
+              {/* Model filter */}
+              <select
+                className="select"
+                style={{ fontSize: '12.5px', padding: '6px 12px', borderRadius: '20px', minWidth: '170px' }}
+                value={cardModel}
+                onChange={e => setCardModel(e.target.value)}
+              >
+                {allModels.map(m => (
+                  <option key={m} value={m}>{m === 'all' ? '🚗 All Models' : m}</option>
+                ))}
+              </select>
+              {/* Search */}
+              <input
+                className="fleet-search-input"
+                type="text"
+                placeholder="Search vehicle, model, brand…"
+                value={cardSearch}
+                onChange={e => setCardSearch(e.target.value)}
+              />
+              {/* Clear filters */}
+              {(cardFilter !== 'all' || cardBrand !== 'all' || cardModel !== 'all' || cardSearch) && (
+                <button
+                  className="fleet-filter-btn"
+                  style={{ color: '#dc2626', borderColor: '#dc2626' }}
+                  onClick={() => { setCardFilter('all'); setCardBrand('all'); setCardModel('all'); setCardSearch('') }}
+                >
+                  ✕ Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Result count */}
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px' }}>
+            Showing {filteredFleetCards.length} of {vehicleLatestStatus.length} vehicles
+          </div>
+
+          {/* Cards grid */}
+          <div className="fleet-cards-grid">
+            {filteredFleetCards.map(v => {
+              const img = CAR_IMAGES[v.model]
+              const gradient = BRAND_GRADIENTS[v.brand] || 'linear-gradient(135deg, #1e293b 0%, #475569 100%)'
+              const sm = STATUS_META[v.status] || { color: '#94a3b8', bg: '#f1f5f9', label: v.status }
+              const batPct = v.battery ?? 0
+              const batColor = batPct >= 60 ? '#16a34a' : batPct >= 30 ? '#f59e0b' : '#dc2626'
+              return (
+                <div key={v.vehicle} className="fleet-card">
+                  {/* Photo / gradient header */}
+                  <div className="fleet-card-img-wrap" style={{ background: gradient }}>
+                    {img
+                      ? <img
+                          src={img}
+                          alt={v.model}
+                          className="fleet-card-img"
+                          loading="lazy"
+                          style={v.brand === 'Mercedes' ? { objectFit: 'contain', objectPosition: 'center center', padding: '8px' } : v.model === 'Mahindra XUV400 EV' ? { objectFit: 'contain', objectPosition: 'center center', padding: '4px' } : undefined}
+                          onError={e => {
+                            e.currentTarget.style.display = 'none'
+                            e.currentTarget.nextElementSibling.style.display = 'flex'
+                          }}
+                        />
+                      : null
+                    }
+                    <div className="fleet-card-img-placeholder" style={{ display: img ? 'none' : 'flex' }}>🚗</div>
+                    {/* Status badge */}
+                    <span className="fleet-card-status-badge" style={{ background: sm.bg, color: sm.color }}>
+                      {sm.label}
+                    </span>
+                  </div>
+
+                  {/* Body */}
+                  <div className="fleet-card-body">
+                    <div className="fleet-card-model">{v.model}</div>
+                    <div className="fleet-card-sub">{v.vehicle} &nbsp;·&nbsp; {v.category}</div>
+
+                    {/* Specs row */}
+                    <div className="fleet-card-specs">
+                      <div className="fleet-card-spec">
+                        <span className="spec-label">Range</span>
+                        <span className="spec-val">{v.maxRange ? v.maxRange + ' km' : '—'}</span>
+                      </div>
+                      <div className="fleet-card-spec">
+                        <span className="spec-label">Battery</span>
+                        <span className="spec-val">{v.batteryCapacity ? v.batteryCapacity + ' kWh' : '—'}</span>
+                      </div>
+                      <div className="fleet-card-spec">
+                        <span className="spec-label">Motor</span>
+                        <span className="spec-val">{v.motorKw ? v.motorKw + ' kW' : '—'}</span>
+                      </div>
+                      <div className="fleet-card-spec">
+                        <span className="spec-label">Driver</span>
+                        <span className="spec-val">{v.driver}</span>
+                      </div>
+                    </div>
+
+                    {/* Battery bar */}
+                    <div className="fleet-card-bat-row">
+                      <span className="spec-label" style={{ minWidth: 56 }}>Charge</span>
+                      <div className="bat-track">
+                        <div className="bat-fill" style={{ width: batPct + '%', background: batColor }} />
+                      </div>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: batColor, minWidth: 36, textAlign: 'right' }}>
+                        {batPct.toFixed(0)}%
+                      </span>
+                    </div>
+
+                    {/* Remaining range */}
+                    {v.remainingRange != null && (
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                        <span style={{ color: '#0891b2', fontWeight: 600 }}>{v.remainingRange} km</span> remaining range
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {filteredFleetCards.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
+              No vehicles match your filter.
+            </div>
+          )}
+        </>
+      )}
 
       {/* ── FLEET STATUS VIEW ── */}
       {activeView === 'fleet' && (
@@ -324,7 +551,7 @@ export default function VehicleTab() {
               <tbody>
                 {sortedDriverData.map(row => (
                   <tr key={row.driver}>
-                    <td style={{ fontWeight: '700' }}>{row.driver}</td>
+                    <td style={{ fontWeight: '700' }}>{row.driverName} <span style={{fontSize:'10px',color:'var(--text-muted)',fontWeight:400}}>#{row.driverRaw}</span></td>
                     <td><span className="badge badge-blue">{row.total}</span></td>
                     <td><span style={{ color: '#16a34a', fontWeight: 600 }}>{row.running}</span></td>
                     <td><span style={{ color: '#0891b2', fontWeight: 600 }}>{row.charging}</span></td>
