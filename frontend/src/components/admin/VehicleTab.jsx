@@ -13,7 +13,97 @@ export default function VehicleTab() {
   const data = useContext(DataContext)
   const vehicleIds = useMemo(() => uniqueValues(data, 'Vehicle_ID'), [data])
   const [selectedVehicle, setVehicle] = useState(vehicleIds[0] ?? '')
-  const [activeView, setActiveView] = useState('overview') // 'overview' | 'brand'
+  const [activeView, setActiveView] = useState('fleet') // 'fleet' | 'overview' | 'brand'
+
+  // ── Fleet Status: latest status per vehicle ────────────────────────────────
+  const vehicleLatestStatus = useMemo(() => {
+    const byVehicle = groupBy(data, 'Vehicle_ID')
+    return Object.entries(byVehicle).map(([vid, rows]) => {
+      const sorted = [...rows].sort((a, b) => {
+        const da = new Date(a.Date + ' ' + (a.Time || ''))
+        const db = new Date(b.Date + ' ' + (b.Time || ''))
+        return db - da
+      })
+      const latest = sorted[0] || {}
+      return {
+        vehicle: vid,
+        brand: latest.Brand || '—',
+        model: latest.Vehicle_Model || '—',
+        category: latest.Category || '—',
+        status: latest.Vehicle_Status || 'Unknown',
+        driver: latest.Driver_ID ? `Driver ${latest.Driver_ID}` : '—',
+        driverRaw: latest.Driver_ID || '',
+        battery: latest.Battery_Percentage != null ? parseFloat(latest.Battery_Percentage) : null,
+        lastDate: latest.Date || '',
+      }
+    })
+  }, [data])
+
+  const fleetStatusCounts = useMemo(() => {
+    const counts = { Running: 0, Charging: 0, Workshop: 0, Other: 0 }
+    vehicleLatestStatus.forEach(v => {
+      if (counts[v.status] !== undefined) counts[v.status]++
+      else counts.Other++
+    })
+    return [
+      { name: 'Running',  value: counts.Running,  color: '#16a34a' },
+      { name: 'Charging', value: counts.Charging, color: '#0891b2' },
+      { name: 'Workshop', value: counts.Workshop, color: '#ea580c' },
+      ...(counts.Other > 0 ? [{ name: 'Other', value: counts.Other, color: '#94a3b8' }] : []),
+    ].filter(s => s.value > 0)
+  }, [vehicleLatestStatus])
+
+  // ── Driver-wise table ──────────────────────────────────────────────────────
+  const [driverSortKey, setDriverSortKey] = useState('driverRaw')
+  const [driverSortDir, setDriverSortDir] = useState('asc')
+
+  const driverTableData = useMemo(() => {
+    const byDriver = groupBy(vehicleLatestStatus, v => v.driverRaw)
+    return Object.entries(byDriver).map(([did, vehicles]) => ({
+      driver: `Driver ${did}`,
+      driverRaw: Number(did) || did,
+      total: vehicles.length,
+      running: vehicles.filter(v => v.status === 'Running').length,
+      charging: vehicles.filter(v => v.status === 'Charging').length,
+      workshop: vehicles.filter(v => v.status === 'Workshop').length,
+      vehicles: vehicles.map(v => v.vehicle).join(', '),
+    }))
+  }, [vehicleLatestStatus])
+
+  const sortedDriverData = useMemo(() => {
+    const arr = [...driverTableData]
+    arr.sort((a, b) => {
+      const va = a[driverSortKey], vb = b[driverSortKey]
+      const cmp = typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb))
+      return driverSortDir === 'asc' ? cmp : -cmp
+    })
+    return arr
+  }, [driverTableData, driverSortKey, driverSortDir])
+
+  // ── Brand-wise status table ────────────────────────────────────────────────
+  const [brandStatusSortKey, setBrandStatusSortKey] = useState('brand')
+  const [brandStatusSortDir, setBrandStatusSortDir] = useState('asc')
+
+  const brandStatusData = useMemo(() => {
+    const byBrand = groupBy(vehicleLatestStatus, v => v.brand)
+    return Object.entries(byBrand).map(([brand, vehicles]) => ({
+      brand,
+      total: vehicles.length,
+      running: vehicles.filter(v => v.status === 'Running').length,
+      charging: vehicles.filter(v => v.status === 'Charging').length,
+      workshop: vehicles.filter(v => v.status === 'Workshop').length,
+    }))
+  }, [vehicleLatestStatus])
+
+  const sortedBrandStatusData = useMemo(() => {
+    const arr = [...brandStatusData]
+    arr.sort((a, b) => {
+      const va = a[brandStatusSortKey], vb = b[brandStatusSortKey]
+      const cmp = typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb))
+      return brandStatusSortDir === 'asc' ? cmp : -cmp
+    })
+    return arr
+  }, [brandStatusData, brandStatusSortKey, brandStatusSortDir])
 
   // ── Rows for selected vehicle (last 3 months of data) ────────────────────
   const vRows = useMemo(() => {
@@ -104,12 +194,16 @@ export default function VehicleTab() {
         </div>
         <div className="page-header-right">
           <div className="view-toggle">
-            {['overview', 'brand'].map(v => (
-              <button key={v}
-                className={`view-toggle-btn${activeView === v ? ' active' : ''}`}
-                onClick={() => setActiveView(v)}
+            {[
+              { key: 'fleet',    label: '🚦 Fleet Status' },
+              { key: 'overview', label: '🚗 Vehicle View' },
+              { key: 'brand',    label: '🏷️ Brand View'   },
+            ].map(({ key, label }) => (
+              <button key={key}
+                className={`view-toggle-btn${activeView === key ? ' active' : ''}`}
+                onClick={() => setActiveView(key)}
               >
-                {v === 'overview' ? '🚗 Vehicle View' : '🏷️ Brand View'}
+                {label}
               </button>
             ))}
           </div>
@@ -122,6 +216,184 @@ export default function VehicleTab() {
           )}
         </div>
       </div>
+
+      {/* ── FLEET STATUS VIEW ── */}
+      {activeView === 'fleet' && (
+        <>
+          {/* Status KPI cards */}
+          <div className="stat-cards">
+            <div className="stat-card blue">
+              <span className="label">Total Vehicles</span>
+              <span className="value">{vehicleLatestStatus.length}</span>
+            </div>
+            {fleetStatusCounts.map(s => (
+              <div key={s.name} className="stat-card" style={{ borderTop: `4px solid ${s.color}` }}>
+                <span className="label">{s.name === 'Running' ? '🟢 Running' : s.name === 'Charging' ? '🔵 Charging' : s.name === 'Workshop' ? '🟠 Workshop' : s.name}</span>
+                <span className="value" style={{ color: s.color }}>{s.value}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Donut + Bar side by side */}
+          <div className="charts-grid-2">
+            <ChartCard title="Fleet Status Distribution" sub="Current status of each vehicle in the fleet">
+              <ResponsiveContainer width="100%" height={260}>
+                <PieChart>
+                  <Pie
+                    data={fleetStatusCounts}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={70}
+                    outerRadius={110}
+                    paddingAngle={3}
+                    dataKey="value"
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    labelLine={true}
+                  >
+                    {fleetStatusCounts.map((s, i) => (
+                      <Cell key={i} fill={s.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(v, name) => [v + ' vehicles', name]} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </ChartCard>
+
+            <ChartCard title="Vehicle Count by Status" sub="Bar view of running / charging / workshop counts">
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={fleetStatusCounts} margin={{ top: 10, right: 20, bottom: 5, left: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <Tooltip formatter={v => [v + ' vehicles', 'Count']} />
+                  <Bar dataKey="value" name="Vehicles" radius={[6, 6, 0, 0]}>
+                    {fleetStatusCounts.map((s, i) => (
+                      <Cell key={i} fill={s.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          </div>
+
+          {/* Driver-wise table */}
+          <div className="chart-wrapper" style={{ marginTop: '20px', overflowX: 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '8px' }}>
+              <div>
+                <div className="chart-title">Vehicle Status — Driver Wise</div>
+                <div className="chart-sub">Current fleet allocation and status breakdown per driver</div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Sort by:</label>
+                <select className="select" style={{ fontSize: '12px', padding: '4px 8px' }}
+                  value={driverSortKey} onChange={e => setDriverSortKey(e.target.value)}>
+                  <option value="driverRaw">Driver ID</option>
+                  <option value="total">Total</option>
+                  <option value="running">Running</option>
+                  <option value="charging">Charging</option>
+                  <option value="workshop">Workshop</option>
+                </select>
+                <button className="view-toggle-btn" style={{ padding: '4px 10px', fontSize: '12px' }}
+                  onClick={() => setDriverSortDir(d => d === 'asc' ? 'desc' : 'asc')}>
+                  {driverSortDir === 'asc' ? '↑ Asc' : '↓ Desc'}
+                </button>
+              </div>
+            </div>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  {[
+                    { key: 'driverRaw', label: 'Driver' },
+                    { key: 'total',    label: 'Total Vehicles' },
+                    { key: 'running',  label: '🟢 Running' },
+                    { key: 'charging', label: '🔵 Charging' },
+                    { key: 'workshop', label: '🟠 Workshop' },
+                    { key: 'vehicles', label: 'Vehicle IDs' },
+                  ].map(({ key, label }) => (
+                    <th key={key} style={{ cursor: 'pointer', userSelect: 'none' }}
+                      onClick={() => {
+                        if (driverSortKey === key) setDriverSortDir(d => d === 'asc' ? 'desc' : 'asc')
+                        else { setDriverSortKey(key); setDriverSortDir('asc') }
+                      }}>
+                      {label} {driverSortKey === key ? (driverSortDir === 'asc' ? '↑' : '↓') : ''}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sortedDriverData.map(row => (
+                  <tr key={row.driver}>
+                    <td style={{ fontWeight: '700' }}>{row.driver}</td>
+                    <td><span className="badge badge-blue">{row.total}</span></td>
+                    <td><span style={{ color: '#16a34a', fontWeight: 600 }}>{row.running}</span></td>
+                    <td><span style={{ color: '#0891b2', fontWeight: 600 }}>{row.charging}</span></td>
+                    <td><span style={{ color: '#ea580c', fontWeight: 600 }}>{row.workshop}</span></td>
+                    <td style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{row.vehicles}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Brand-wise status table */}
+          <div className="chart-wrapper" style={{ marginTop: '20px', overflowX: 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '8px' }}>
+              <div>
+                <div className="chart-title">Vehicle Status — Brand Wise</div>
+                <div className="chart-sub">Fleet status summary grouped by manufacturer / brand</div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Sort by:</label>
+                <select className="select" style={{ fontSize: '12px', padding: '4px 8px' }}
+                  value={brandStatusSortKey} onChange={e => setBrandStatusSortKey(e.target.value)}>
+                  <option value="brand">Brand</option>
+                  <option value="total">Total</option>
+                  <option value="running">Running</option>
+                  <option value="charging">Charging</option>
+                  <option value="workshop">Workshop</option>
+                </select>
+                <button className="view-toggle-btn" style={{ padding: '4px 10px', fontSize: '12px' }}
+                  onClick={() => setBrandStatusSortDir(d => d === 'asc' ? 'desc' : 'asc')}>
+                  {brandStatusSortDir === 'asc' ? '↑ Asc' : '↓ Desc'}
+                </button>
+              </div>
+            </div>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  {[
+                    { key: 'brand',    label: 'Brand' },
+                    { key: 'total',    label: 'Total Vehicles' },
+                    { key: 'running',  label: '🟢 Running' },
+                    { key: 'charging', label: '🔵 Charging' },
+                    { key: 'workshop', label: '🟠 Workshop' },
+                  ].map(({ key, label }) => (
+                    <th key={key} style={{ cursor: 'pointer', userSelect: 'none' }}
+                      onClick={() => {
+                        if (brandStatusSortKey === key) setBrandStatusSortDir(d => d === 'asc' ? 'desc' : 'asc')
+                        else { setBrandStatusSortKey(key); setBrandStatusSortDir('asc') }
+                      }}>
+                      {label} {brandStatusSortKey === key ? (brandStatusSortDir === 'asc' ? '↑' : '↓') : ''}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sortedBrandStatusData.map(row => (
+                  <tr key={row.brand}>
+                    <td style={{ fontWeight: '700' }}>{row.brand}</td>
+                    <td><span className="badge badge-blue">{row.total}</span></td>
+                    <td><span style={{ color: '#16a34a', fontWeight: 600 }}>{row.running}</span></td>
+                    <td><span style={{ color: '#0891b2', fontWeight: 600 }}>{row.charging}</span></td>
+                    <td><span style={{ color: '#ea580c', fontWeight: 600 }}>{row.workshop}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
 
       {/* ── OVERVIEW VIEW ── */}
       {activeView === 'overview' && (
