@@ -4,9 +4,10 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 import { DataContext } from '../../App'
+import RangePredictionTab from './RangePredictionTab'
 import {
   monthlyAgg, countWhere, sumBy, avgBy,
-  fmtNum, fmtCurrency, COLORS
+  fmtNum, fmtCurrency, COLORS, driverName
 } from '../../utils/dataUtils'
 
 const NAV_TABS = [
@@ -15,6 +16,7 @@ const NAV_TABS = [
   { key: 'battery',  icon: '🔋', label: 'Battery & Charge', sub: 'State of charge & health' },
   { key: 'vehicle',  icon: '🚗', label: 'Vehicle Specs', sub: 'Assigned car details' },
   { key: 'road',     icon: '🛣️', label: 'Road Performance', sub: 'Highway vs City driving' },
+  { key: 'predict',  icon: '🧠', label: 'Range Predictor', sub: 'Send inputs to the Flask model' },
 ]
 
 export default function DriverDashboard({ user, onLogout }) {
@@ -259,6 +261,10 @@ export default function DriverDashboard({ user, onLogout }) {
 
         {/* Scrollable Content Body */}
         <div className="tab-content" style={{ flex: 1, overflow: 'auto', padding: '28px' }}>
+
+          {tab === 'predict' && (
+            <RangePredictionTab user={user} latestRecord={latestRecord} />
+          )}
           
           {/* ════════════════ OVERVIEW TAB ════════════════ */}
           {tab === 'overview' && (

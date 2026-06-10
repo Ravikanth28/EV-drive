@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useContext, useMemo, useState } from 'react'
+import { DataContext } from '../../App'
+import { fmtCurrency, fmtNum, groupBy, sumBy, uniqueValues } from '../../utils/dataUtils'
 import DriverTab  from './DriverTab'
 import VehicleTab from './VehicleTab'
 import CompanyTab from './CompanyTab'
@@ -12,12 +14,46 @@ const NAV = [
 const ICON_CLASS = { driver: 'driver', vehicle: 'vehicle', company: 'company' }
 
 export default function AdminDashboard({ user, onLogout }) {
+  const data = useContext(DataContext)
   const [tab, setTab] = useState('driver')
   const active = NAV.find(n => n.key === tab)
   const today  = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 
+  const overview = useMemo(() => {
+    const grouped = groupBy(data, 'Vehicle_ID')
+    const latestVehicles = Object.values(grouped).map(rows => {
+      const sorted = [...rows].sort((a, b) => {
+        const timeA = new Date(`${a.Date} ${a.Time || '00:00:00'}`).getTime() || 0
+        const timeB = new Date(`${b.Date} ${b.Time || '00:00:00'}`).getTime() || 0
+        return timeB - timeA
+      })
+      return sorted[0] || {}
+    })
+
+    const statusCounts = latestVehicles.reduce((acc, row) => {
+      const status = row.Vehicle_Status || 'Other'
+      acc[status] = (acc[status] || 0) + 1
+      return acc
+    }, {})
+
+    const revenue = sumBy(data, 'Income_Generated')
+    const expense = sumBy(data, 'Total_Expense')
+
+    return {
+      vehicles: latestVehicles.length,
+      drivers: uniqueValues(data, 'Driver_ID').length,
+      trips: data.length,
+      running: statusCounts.Running || 0,
+      charging: statusCounts.Charging || 0,
+      workshop: statusCounts.Workshop || 0,
+      revenue,
+      expense,
+      profit: revenue - expense,
+    }
+  }, [data])
+
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <div className="admin-shell">
 
       {/* ═══ SIDEBAR ═══ */}
       <aside className="sidebar">
@@ -25,8 +61,18 @@ export default function AdminDashboard({ user, onLogout }) {
         <div className="sidebar-logo">
           <div className="sidebar-logo-icon">⚡</div>
           <div className="sidebar-logo-text">
-            <div className="sidebar-logo-title">EV Fleet</div>
-            <div className="sidebar-logo-sub">Admin Portal</div>
+            <div className="sidebar-logo-title">EV Fleet Admin</div>
+            <div className="sidebar-logo-sub">Operations workspace</div>
+          </div>
+        </div>
+
+        <div className="sidebar-summary-card">
+          <div className="sidebar-summary-label">Assigned fleet</div>
+          <div className="sidebar-summary-value">{overview.vehicles} vehicles</div>
+          <div className="sidebar-summary-meta">
+            <span>{overview.running} running</span>
+            <span>{overview.charging} charging</span>
+            <span>{overview.workshop} workshop</span>
           </div>
         </div>
 
@@ -64,7 +110,30 @@ export default function AdminDashboard({ user, onLogout }) {
       </aside>
 
       {/* ═══ MAIN ═══ */}
-      <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <main className="dashboard-main">
+        <section className="workspace-hero">
+          <div className="workspace-hero-copy">
+            <p className="workspace-eyebrow">Fleet operations</p>
+            <h1>{active?.label}</h1>
+            <p>{active?.sub}</p>
+          </div>
+
+          <div className="workspace-metrics">
+            <div className="workspace-metric">
+              <span className="workspace-metric-label">Trips</span>
+              <strong>{fmtNum(overview.trips)}</strong>
+            </div>
+            <div className="workspace-metric">
+              <span className="workspace-metric-label">Drivers</span>
+              <strong>{overview.drivers}</strong>
+            </div>
+            <div className="workspace-metric">
+              <span className="workspace-metric-label">Net profit</span>
+              <strong className={overview.profit >= 0 ? 'positive' : 'negative'}>{fmtCurrency(overview.profit)}</strong>
+            </div>
+          </div>
+        </section>
+
         {/* Topbar */}
         <div className="topbar">
           <div className="topbar-left">
@@ -86,7 +155,7 @@ export default function AdminDashboard({ user, onLogout }) {
         </div>
 
         {/* Tab body */}
-        <div style={{ flex: 1, overflow: 'auto' }}>
+        <div className="dashboard-scroll-area">
           {tab === 'driver'  && <DriverTab  />}
           {tab === 'vehicle' && <VehicleTab />}
           {tab === 'company' && <CompanyTab />}

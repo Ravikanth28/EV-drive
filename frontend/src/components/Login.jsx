@@ -121,15 +121,16 @@ export default function Login({ onLogin, data }) {
     }
 
     // Driver login
+    const did = username.trim()
     if (password !== 'driver123') {
       setErr('Wrong password. Use driver123')
       return
     }
-    if (!drivers.includes(username)) {
-      setErr(`Driver ID "${username}" not found in the system.`)
+    if (!drivers.includes(did)) {
+      setErr(`Driver ID "${did}" not found in the system.`)
       return
     }
-    onLogin({ role: 'driver', id: username })
+    onLogin({ role: 'driver', id: did })
   }
 
   return (

@@ -1,4 +1,4 @@
-import { useContext, useMemo } from 'react'
+import { useContext, useMemo, useState } from 'react'
 import {
   BarChart, Bar, LineChart, Line, AreaChart, Area, ComposedChart,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell,
@@ -10,6 +10,8 @@ import {
 
 export default function CompanyTab() {
   const data = useContext(DataContext)
+  const [summarySortKey, setSummarySortKey] = useState('revenue')
+  const [summarySortDir, setSummarySortDir] = useState('desc')
 
   // ── Fleet-wide monthly aggregations ───────────────────────────────────────
   const monthlyExpense = useMemo(
@@ -47,6 +49,21 @@ export default function CompanyTab() {
       profit: (revMap[r.month] ?? 0) - r.value,
     }))
   }, [monthlyExpense, monthlyRevenue])
+
+  const sortedMonthlyProfit = useMemo(() => {
+    const rows = [...monthlyProfit]
+    const direction = summarySortDir === 'asc' ? 1 : -1
+
+    rows.sort((a, b) => {
+      if (summarySortKey === 'month') {
+        return direction * a.month.localeCompare(b.month)
+      }
+
+      return direction * ((a[summarySortKey] ?? 0) - (b[summarySortKey] ?? 0))
+    })
+
+    return rows
+  }, [monthlyProfit, summarySortDir, summarySortKey])
 
   // ── Fleet-wide KPIs ───────────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -335,6 +352,30 @@ export default function CompanyTab() {
       <div className="chart-wrapper" style={{ marginTop: '20px', overflowX: 'auto' }}>
         <div className="chart-title">Monthly Financial Summary</div>
         <div className="chart-sub">Complete month-wise breakdown of revenue, expense, and net profit across all vehicles</div>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', justifyContent: 'flex-end', margin: '10px 0 12px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 700, color: 'var(--muted)' }}>
+            Sort by
+            <select
+              className="prediction-input"
+              style={{ width: '150px', minHeight: '36px' }}
+              value={summarySortKey}
+              onChange={e => setSummarySortKey(e.target.value)}
+            >
+              <option value="month">Month</option>
+              <option value="revenue">Revenue</option>
+              <option value="expense">Expense</option>
+              <option value="profit">Net Profit</option>
+            </select>
+          </label>
+          <button
+            type="button"
+            className="prediction-reset-btn"
+            onClick={() => setSummarySortDir(prev => (prev === 'asc' ? 'desc' : 'asc'))}
+            style={{ minHeight: '36px', padding: '0 14px' }}
+          >
+            {summarySortDir === 'asc' ? 'Ascending' : 'Descending'}
+          </button>
+        </div>
         <table className="data-table">
           <thead>
             <tr>
@@ -344,7 +385,7 @@ export default function CompanyTab() {
             </tr>
           </thead>
           <tbody>
-            {monthlyProfit.map((row) => {
+            {sortedMonthlyProfit.map((row) => {
               const bd = monthlyBreakdown.find(b => b.month === row.month)?.value ?? 0
               const ws = monthlyWorkshop.find(w => w.month === row.month)?.value ?? 0
               const os = monthlyOvespeed.find(o => o.month === row.month)?.value ?? 0

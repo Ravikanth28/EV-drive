@@ -22,6 +22,16 @@ export default defineConfig({
       },
     },
   ],
+  server: {
+    proxy: {
+      '/api/predict': {
+        target: 'https://ev-backend-z6gd.onrender.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: path => path.replace(/^\/api\/predict/, '/predict'),
+      },
+    },
+  },
   publicDir: false,
 })
 
