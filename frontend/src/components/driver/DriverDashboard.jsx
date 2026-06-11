@@ -12,40 +12,16 @@ import {
 import DynamicChart from '../shared/DynamicChart'
 import SortableTable from '../shared/SortableTable'
 import ChartCard from '../shared/ChartCard'
-
-class TabErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error };
-  }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div style={{ padding: '40px', color: '#ff8080', background: '#2d1a1a', borderRadius: '8px', margin: '20px' }}>
-          <h2>Something went wrong in this tab.</h2>
-          <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
-            {this.state.error?.toString()}
-          </pre>
-          <pre style={{ marginTop: '10px', fontSize: '12px', opacity: 0.8, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
-            {this.state.error?.stack}
-          </pre>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
+import { LayoutDashboard, Ruler, Battery, CarFront, Map, BrainCircuit, Zap, User, LogOut, Calendar, Circle, PlugZap, Trophy, AlertTriangle } from 'lucide-react'
+import logoImg from '../../assets/logo.png'
 
 const NAV_TABS = [
-  { key: 'overview', icon: '📊', label: 'Overview', sub: 'General performance & history' },
-  { key: 'distance', icon: '📏', label: 'Distance Travelled', sub: 'Mileage & trip distances' },
-  { key: 'battery',  icon: '🔋', label: 'Battery & Charge', sub: 'State of charge & health' },
-  { key: 'vehicle',  icon: '🚗', label: 'Vehicle Specs', sub: 'Assigned car details' },
-  { key: 'road',     icon: '🛣️', label: 'Road Performance', sub: 'Highway vs City driving' },
-  { key: 'predict',  icon: '🧠', label: 'Range Predictor', sub: 'Send inputs to the Flask model' },
+  { key: 'overview', icon: <LayoutDashboard size={18} />, label: 'Overview', sub: 'General performance & history' },
+  { key: 'distance', icon: <Ruler size={18} />, label: 'Distance Travelled', sub: 'Mileage & trip distances' },
+  { key: 'battery',  icon: <Battery size={18} />, label: 'Battery & Charge', sub: 'State of charge & health' },
+  { key: 'vehicle',  icon: <CarFront size={18} />, label: 'Vehicle Specs', sub: 'Assigned car details' },
+  { key: 'road',     icon: <Map size={18} />, label: 'Road Performance', sub: 'Highway vs City driving' },
+  { key: 'predict',  icon: <BrainCircuit size={18} />, label: 'Range Predictor', sub: 'Send inputs to the Flask model' },
 ]
 
 export default function DriverDashboard({ user, onLogout }) {
@@ -207,7 +183,9 @@ export default function DriverDashboard({ user, onLogout }) {
       <aside className="sidebar">
         {/* Logo */}
         <div className="sidebar-logo">
-          <div className="sidebar-logo-icon">⚡</div>
+          <div className="sidebar-logo-icon" style={{ background: 'transparent', padding: 0, boxShadow: 'none' }}>
+            <img src={logoImg} alt="Logo" style={{ width: '40px', height: '40px', objectFit: 'contain', marginLeft: '-8px' }} />
+          </div>
           <div className="sidebar-logo-text">
             <div className="sidebar-logo-title">EV Fleet</div>
             <div className="sidebar-logo-sub">Driver Portal</div>
@@ -223,8 +201,8 @@ export default function DriverDashboard({ user, onLogout }) {
             padding: '12px 14px',
             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)'
           }}>
-            <div style={{ fontSize: '28px', textAlign: 'center', margin: '0 auto 6px', width: '48px', height: '48px', lineHeight: '48px', background: 'rgba(255,255,255,0.05)', borderRadius: '50%' }}>🚗</div>
-            <div style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '14px', textAlign: 'center' }}>
+            <div style={{ textAlign: 'center', marginBottom: '6px' }}><CarFront size={28} /></div>
+            <div style={{ color: '#fff', fontWeight: '700', fontSize: '14px', textAlign: 'center' }}>
               {driverName(driverId)}
             </div>
             <div style={{ color: 'var(--text-secondary)', fontSize: '11px', textAlign: 'center' }}>Driver #{driverId}</div>
@@ -255,14 +233,14 @@ export default function DriverDashboard({ user, onLogout }) {
         {/* Sidebar Footer */}
         <div className="sidebar-footer">
           <div className="sidebar-user-card" style={{ marginBottom: '10px' }}>
-            <div className="sidebar-user-avatar">👤</div>
+            <div className="sidebar-user-avatar"><User size={20} /></div>
             <div>
               <div className="sidebar-user-name" style={{ fontSize: '12px' }}>Driver #{driverId}</div>
               <div className="sidebar-user-role" style={{ fontSize: '10px' }}>{stats.totalTrips} recorded trips</div>
             </div>
           </div>
           <button className="btn-signout" onClick={onLogout}>
-            <span>↩</span> Sign Out
+            <span><LogOut size={16} /></span> Sign Out
           </button>
         </div>
       </aside>
@@ -285,7 +263,7 @@ export default function DriverDashboard({ user, onLogout }) {
               <span className="topbar-pill-dot" />
               Online
             </div>
-            <div className="topbar-date">📅 {today}</div>
+            <div className="topbar-date"><Calendar size={14} style={{ marginRight: '6px', verticalAlign: '-2px' }} /> {today}</div>
           </div>
         </div>
 
@@ -436,7 +414,7 @@ export default function DriverDashboard({ user, onLogout }) {
 
               {/* Longest Trips Table */}
               <div className="chart-wrapper" style={{ overflowX: 'auto', marginTop: '20px' }}>
-                <div className="chart-title">🏆 Longest Trips (Top 5)</div>
+                <div className="chart-title"><Trophy size={18} style={{ display: 'inline-block', verticalAlign: 'text-bottom' }} /> Longest Trips (Top 5)</div>
                 <div className="chart-sub">Your top distance records — click any column to sort ascending / descending</div>
                 <SortableTable
                   rows={longestTrips}
@@ -458,7 +436,7 @@ export default function DriverDashboard({ user, onLogout }) {
 
           {/* ════════════════ BATTERY & CHARGE TAB ════════════════ */}
           {tab === 'battery' && (
-            <TabErrorBoundary>
+            <>
               {/* KPI Cards */}
               <div className="stat-cards">
                 <div className="stat-card green">
@@ -489,7 +467,7 @@ export default function DriverDashboard({ user, onLogout }) {
               <div className="vehicle-banner" style={{ background: currentStatus === 'Charging' ? 'linear-gradient(135deg, #0284c7, #0369a1)' : 'linear-gradient(135deg, #1e293b, #334155)', boxShadow: 'none', marginBottom: '20px' }}>
                 <div className="vehicle-banner-item">
                   <div className="vehicle-banner-label">Vehicle Status</div>
-                  <div className="vehicle-banner-value">⚡ {currentStatus}</div>
+                  <div className="vehicle-banner-value"><Zap size={16} style={{ display: 'inline-block', verticalAlign: '-2px' }} /> {currentStatus}</div>
                 </div>
                 <div className="vehicle-banner-item">
                   <div className="vehicle-banner-label">Battery Capacity</div>
@@ -497,7 +475,7 @@ export default function DriverDashboard({ user, onLogout }) {
                 </div>
                 <div className="vehicle-banner-item">
                   <div className="vehicle-banner-label">Health Status</div>
-                  <div className="vehicle-banner-value">{latestHealth >= 90 ? '🟢 Excellent' : latestHealth >= 80 ? '🟡 Good' : '🔴 Service Required'}</div>
+                  <div className="vehicle-banner-value">{latestHealth >= 90 ? <><Circle size={14} fill="#4ade80" color="#4ade80" style={{ display: 'inline-block', verticalAlign: '-2px' }} /> Excellent</> : latestHealth >= 80 ? <><Circle size={14} fill="#facc15" color="#facc15" style={{ display: 'inline-block', verticalAlign: '-2px' }} /> Good</> : <><AlertTriangle size={14} color="#f87171" style={{ display: 'inline-block', verticalAlign: '-2px' }} /> Service Required</>}</div>
                 </div>
               </div>
 
@@ -537,7 +515,7 @@ export default function DriverDashboard({ user, onLogout }) {
 
               {/* Recent Charging Events */}
               <div className="chart-wrapper" style={{ overflowX: 'auto', marginTop: '20px' }}>
-                <div className="chart-title">🔌 Recent Charging Sessions</div>
+                <div className="chart-title"><PlugZap size={18} style={{ display: 'inline-block', verticalAlign: 'text-bottom' }} /> Recent Charging Sessions</div>
                 <div className="chart-sub">List of recent charging state logs recorded for your vehicle</div>
                 <table className="data-table">
                   <thead>
@@ -553,7 +531,7 @@ export default function DriverDashboard({ user, onLogout }) {
                         <td>{session.Date}</td>
                         <td>{session.Time}</td>
                         <td style={{ fontWeight: '700' }}>{session.Vehicle_ID}</td>
-                        <td style={{ fontWeight: '600', color: 'var(--primary)' }}>⚡ {Number(session.Battery_Percentage).toFixed(1)}%</td>
+                        <td style={{ fontWeight: '600', color: 'var(--primary)' }}><Zap size={14} style={{ display: 'inline-block', verticalAlign: '-2px' }} /> {Number(session.Battery_Percentage).toFixed(1)}%</td>
                         <td>{session.Charge_Cycle_Count}</td>
                         <td>{fmtNum(session.Odometer_km)} km</td>
                       </tr>
@@ -568,7 +546,7 @@ export default function DriverDashboard({ user, onLogout }) {
                   </tbody>
                 </table>
               </div>
-            </TabErrorBoundary>
+            </>
           )}
 
           {/* ════════════════ VEHICLE SPECS TAB ════════════════ */}
@@ -649,7 +627,7 @@ export default function DriverDashboard({ user, onLogout }) {
 
                     <div style={{ marginTop: '24px', textAlign: 'center', maxWidth: '300px' }}>
                       <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-primary)' }}>
-                        {latestHealth >= 90 ? '🔋 Excellent Battery Health' : latestHealth >= 80 ? '🔋 Good Battery Health' : '⚠️ Battery Degraded'}
+                        {latestHealth >= 90 ? <><Battery size={16} style={{ display: 'inline-block', verticalAlign: '-2px' }} /> Excellent Battery Health</> : latestHealth >= 80 ? <><Battery size={16} style={{ display: 'inline-block', verticalAlign: '-2px' }} /> Good Battery Health</> : <><AlertTriangle size={16} style={{ display: 'inline-block', verticalAlign: '-2px' }} /> Battery Degraded</>}
                       </div>
                       <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '6px', lineHeight: 1.4 }}>
                         Your battery health is sitting at {latestHealth}%. Capacity retention is optimal for normal operational ranges.

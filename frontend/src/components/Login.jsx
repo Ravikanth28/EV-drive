@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { uniqueValues } from '../utils/dataUtils'
-import loginBg from '../assets/mustang.png'
+import loginVideo from '../assets/loginvideo.mp4'
+import { Shield, CarFront, AlertTriangle } from 'lucide-react'
+
 
 export default function Login({ onLogin, data }) {
   const [role, setRole]     = useState('admin')
@@ -197,8 +199,8 @@ export default function Login({ onLogin, data }) {
             <div className="role-switcher">
               <div className={`role-slider ${role}`} />
               {[
-                { key: 'admin',  icon: '🛡️', label: 'Admin'  },
-                { key: 'driver', icon: '🚗', label: 'Driver' },
+                { key: 'admin',  icon: <Shield size={18} />, label: 'Admin'  },
+                { key: 'driver', icon: <CarFront size={18} />, label: 'Driver' },
               ].map(({ key, icon, label }) => (
                 <button 
                   key={key} 
@@ -214,7 +216,7 @@ export default function Login({ onLogin, data }) {
             <form onSubmit={handleSubmit}>
               {err && (
                 <div className="error-msg">
-                  <span>⚠️</span> {err}
+                  <AlertTriangle size={18} /> {err}
                 </div>
               )}
 
@@ -257,9 +259,12 @@ export default function Login({ onLogin, data }) {
           </div>
         </div>
 
-        {/* Right Side: Image & Text */}
-        <div className="login-right" style={{ background: `url(${loginBg}) center/cover no-repeat` }}>
-          <div className="login-right-overlay" />
+        {/* Right Side: Video & Text */}
+        <div className="login-right" style={{ overflow: 'hidden' }}>
+          <video autoPlay loop muted playsInline style={{ position: 'absolute', width: '100%', height: '100%', objectFit: 'cover', top: 0, left: 0, zIndex: 0 }}>
+            <source src={loginVideo} type="video/mp4" />
+          </video>
+          <div className="login-right-overlay" style={{ zIndex: 1 }} />
           <h2 className="quote-title">The future of <span>sustainable</span> fleet logistics.</h2>
           <div className="login-quote">
             <p className="quote-text">

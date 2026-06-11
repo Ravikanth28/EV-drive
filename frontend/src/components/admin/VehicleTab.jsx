@@ -12,6 +12,7 @@ import ChartCard from '../shared/ChartCard'
 import DynamicChart from '../shared/DynamicChart'
 import SortableTable from '../shared/SortableTable'
 import FilterPanel, { FilterGroup, FilterChips, FilterToggle, FilterRange, FilterCheckboxGroup } from '../shared/FilterPanel'
+import { Zap, Wrench, GalleryHorizontalEnd, TrafficCone, CarFront, Tags, Circle, Play } from 'lucide-react'
 
 import imgTiagoEV      from '../../assets/cars/tiagoev.png'
 import imgPunchEV      from '../../assets/cars/punchev.png'
@@ -250,12 +251,16 @@ export default function VehicleTab() {
         </div>
         <div className="page-header-right">
           <div className="view-toggle">
-            <button className={`view-toggle-btn${viewMode === 'cards' ? ' active' : ''}`} onClick={() => setViewMode('cards')}>
-              🃏 Fleet Cards
-            </button>
-            <button className={`view-toggle-btn${viewMode === 'brand' ? ' active' : ''}`} onClick={() => setViewMode('brand')}>
-              🏷️ Brand Metrics
-            </button>
+            {[
+              { key: 'cards', label: <><GalleryHorizontalEnd size={16} style={{ display: 'inline-block', verticalAlign: '-2px', marginRight: '6px' }} /> Fleet Cards</> },
+              { key: 'fleet', label: <><TrafficCone size={16} style={{ display: 'inline-block', verticalAlign: '-2px', marginRight: '6px' }} /> Fleet Status</> },
+              { key: 'overview', label: <><CarFront size={16} style={{ display: 'inline-block', verticalAlign: '-2px', marginRight: '6px' }} /> Vehicle View</> },
+              { key: 'brand', label: <><Tags size={16} style={{ display: 'inline-block', verticalAlign: '-2px', marginRight: '6px' }} /> Brand View</> },
+            ].map(({ key, label }) => (
+              <button key={key} className={`view-toggle-btn${activeView === key ? ' active' : ''}`} onClick={() => setActiveView(key)}>
+                {label}
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -267,9 +272,9 @@ export default function VehicleTab() {
               <FilterChips
                 options={[
                   { value: 'all', label: `All (${vehicleLatestStatus.length})` },
-                  { value: 'Running', label: '🟢 Running' },
-                  { value: 'Charging', label: '⚡ Charging' },
-                  { value: 'Workshop', label: '🔧 Workshop' },
+                  { value: 'Running', label: <><Play size={14} fill="currentColor" style={{ display: 'inline-block', verticalAlign: '-2px', marginRight: '4px' }} /> Running</> },
+                  { value: 'Charging', label: <><Zap size={14} fill="currentColor" style={{ display: 'inline-block', verticalAlign: '-2px', marginRight: '4px' }} /> Charging</> },
+                  { value: 'Workshop', label: <><Wrench size={14} fill="currentColor" style={{ display: 'inline-block', verticalAlign: '-2px', marginRight: '4px' }} /> Workshop</> },
                 ]}
                 value={cardFilter}
                 onChange={setCardFilter}
@@ -330,7 +335,7 @@ export default function VehicleTab() {
                           style={v.brand === 'Mercedes' ? { objectFit: 'contain', padding: '8px', filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.5))' } : v.model === 'Mahindra XUV400 EV' ? { objectFit: 'contain', padding: '4px', filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.5))' } : { filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.5))' }}
                           onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling.style.display = 'flex' }} />
                       ) : null}
-                      <div className="fleet-card-img-placeholder" style={{ display: img ? 'none' : 'flex' }}>🚗</div>
+                      <div className="fleet-card-img-placeholder" style={{ display: img ? 'none' : 'flex' }}><CarFront size={32} /></div>
                       <span className="fleet-card-status-badge" style={{ background: sm.bg, color: sm.color }}>{sm.label}</span>
                     </div>
                     <div className="fleet-card-body">
@@ -364,7 +369,136 @@ export default function VehicleTab() {
         </div>
       )}
 
-      {viewMode === 'brand' && (
+      {/* ── FLEET STATUS VIEW ── */}
+      {activeView === 'fleet' && (
+        <>
+          <div className="stat-cards">
+            <div className="stat-card blue"><span className="label">Total Vehicles</span><span className="value">{vehicleLatestStatus.length}</span></div>
+            {fleetStatusCounts.map(s => (
+              <div key={s.name} className="stat-card" style={{ borderTop: `4px solid ${s.color}` }}>
+                <span className="label">{s.name === 'Running' ? <><Circle fill="#16a34a" color="#16a34a" size={12} style={{ display: 'inline-block', marginRight: '4px' }} /> Running</> : s.name === 'Charging' ? <><Circle fill="#0891b2" color="#0891b2" size={12} style={{ display: 'inline-block', marginRight: '4px' }} /> Charging</> : s.name === 'Workshop' ? <><Circle fill="#ea580c" color="#ea580c" size={12} style={{ display: 'inline-block', marginRight: '4px' }} /> Workshop</> : s.name}</span>
+                <span className="value" style={{ color: s.color }}>{s.value}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="charts-grid-2">
+            <ChartCard title="Fleet Status Distribution" sub="Current status of each vehicle in the fleet">
+              <ResponsiveContainer width="100%" height={260}>
+                <PieChart>
+                  <Pie data={fleetStatusCounts} cx="50%" cy="50%" innerRadius={70} outerRadius={110} paddingAngle={3} dataKey="value"
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                    {fleetStatusCounts.map((s, i) => <Cell key={i} fill={s.color} />)}
+                  </Pie>
+                  <Tooltip formatter={(v, name) => [v + ' vehicles', name]} contentStyle={{ borderRadius: 10, border: '1px solid #e8e9ee', fontSize: 12 }} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </ChartCard>
+
+            <DynamicChart title="Vehicle Count by Status" sub="Running / charging / workshop counts"
+              data={fleetStatusCounts} xKey="name" defaultType="bar" types={['bar', 'line', 'area']}
+              metrics={[{ key: 'value', label: 'Vehicles', color: '#2563eb', colorFn: r => r.color, format: v => v + ' vehicles' }]} />
+          </div>
+
+          {/* Driver-wise table */}
+          <div className="chart-wrapper" style={{ marginTop: '20px', overflowX: 'auto' }}>
+            <div className="chart-title">Vehicle Status — Driver Wise</div>
+            <div className="chart-sub">Current fleet allocation per driver — click any column to sort</div>
+            <SortableTable
+              rows={driverTableData}
+              rowKey={r => r.driverRaw}
+              initialSort={{ key: 'driverRaw', dir: 'asc' }}
+              columns={[
+                { key: 'driverRaw', label: 'Driver', render: r => <span style={{ fontWeight: 700 }}>{r.driverName} <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400 }}>#{r.driverRaw}</span></span> },
+                { key: 'total', label: 'Total', align: 'right', render: r => <span className="badge badge-blue">{r.total}</span> },
+                { key: 'running', label: <><Circle fill="#16a34a" color="#16a34a" size={12} style={{ display: 'inline-block', verticalAlign: '-1px', marginRight: '4px' }} /> Running</>, align: 'right', render: r => <span style={{ color: '#16a34a', fontWeight: 600 }}>{r.running}</span> },
+                { key: 'charging', label: <><Circle fill="#0891b2" color="#0891b2" size={12} style={{ display: 'inline-block', verticalAlign: '-1px', marginRight: '4px' }} /> Charging</>, align: 'right', render: r => <span style={{ color: '#0891b2', fontWeight: 600 }}>{r.charging}</span> },
+                { key: 'workshop', label: <><Circle fill="#ea580c" color="#ea580c" size={12} style={{ display: 'inline-block', verticalAlign: '-1px', marginRight: '4px' }} /> Workshop</>, align: 'right', render: r => <span style={{ color: '#ea580c', fontWeight: 600 }}>{r.workshop}</span> },
+                { key: 'vehicles', label: 'Vehicle IDs', render: r => <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{r.vehicles}</span> },
+              ]}
+            />
+          </div>
+
+          {/* Brand-wise table */}
+          <div className="chart-wrapper" style={{ marginTop: '20px', overflowX: 'auto' }}>
+            <div className="chart-title">Vehicle Status — Brand Wise</div>
+            <div className="chart-sub">Fleet status grouped by manufacturer — click any column to sort</div>
+            <SortableTable
+              rows={brandStatusData}
+              rowKey={r => r.brand}
+              initialSort={{ key: 'brand', dir: 'asc' }}
+              columns={[
+                { key: 'brand', label: 'Brand', render: r => <span style={{ fontWeight: 700 }}>{r.brand}</span> },
+                { key: 'total', label: 'Total', align: 'right', render: r => <span className="badge badge-blue">{r.total}</span> },
+                { key: 'running', label: <><Circle fill="#16a34a" color="#16a34a" size={12} style={{ display: 'inline-block', verticalAlign: '-1px', marginRight: '4px' }} /> Running</>, align: 'right', render: r => <span style={{ color: '#16a34a', fontWeight: 600 }}>{r.running}</span> },
+                { key: 'charging', label: <><Circle fill="#0891b2" color="#0891b2" size={12} style={{ display: 'inline-block', verticalAlign: '-1px', marginRight: '4px' }} /> Charging</>, align: 'right', render: r => <span style={{ color: '#0891b2', fontWeight: 600 }}>{r.charging}</span> },
+                { key: 'workshop', label: <><Circle fill="#ea580c" color="#ea580c" size={12} style={{ display: 'inline-block', verticalAlign: '-1px', marginRight: '4px' }} /> Workshop</>, align: 'right', render: r => <span style={{ color: '#ea580c', fontWeight: 600 }}>{r.workshop}</span> },
+              ]}
+            />
+          </div>
+        </>
+      )}
+
+      {/* ── OVERVIEW VIEW ── */}
+      {activeView === 'overview' && (
+        <>
+          <div className="vehicle-banner">
+            {[
+              { label: 'Vehicle', val: vInfo.Vehicle_ID },
+              { label: 'Brand', val: vInfo.Brand },
+              { label: 'Model', val: vInfo.Vehicle_Model },
+              { label: 'Category', val: vInfo.Category },
+              { label: 'Max Range', val: vInfo.Max_Range_km ? vInfo.Max_Range_km + ' km' : '—' },
+              { label: 'Battery', val: vInfo.Battery_Capacity_kWh ? vInfo.Battery_Capacity_kWh + ' kWh' : '—' },
+            ].map(({ label, val }) => (
+              <div className="vehicle-banner-item" key={label}>
+                <div className="vehicle-banner-label">{label}</div>
+                <div className="vehicle-banner-value">{val || '—'}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="stat-cards">
+            <div className="stat-card blue"><span className="label">Total Trips</span><span className="value">{fmtNum(stats.totalTrips)}</span></div>
+            <div className="stat-card cyan"><span className="label">Total Distance</span><span className="value">{fmtNum(stats.totalKm, 0)} km</span></div>
+            <div className="stat-card green"><span className="label">Charging Sessions</span><span className="value">{stats.chargingSessions}</span></div>
+            <div className="stat-card purple"><span className="label">Workshop Visits</span><span className="value">{stats.workshopVisits}</span></div>
+            <div className="stat-card orange"><span className="label">Total Expense</span><span className="value">{fmtCurrency(stats.totalExpense)}</span></div>
+            <div className="stat-card red"><span className="label">Overspeed %</span><span className="value">{stats.overspeedPct.toFixed(1)}%</span></div>
+            <div className="stat-card blue"><span className="label">Breakdowns</span><span className="value">{stats.breakdowns}</span></div>
+            <div className="stat-card cyan"><span className="label">Avg Passengers</span><span className="value">{stats.avgPassengers.toFixed(1)}</span></div>
+          </div>
+
+          <div className="charts-grid-2">
+            <DynamicChart title="Monthly Charging Sessions" sub="Times the vehicle was charged per month"
+              data={monthlyCharging} height={230} defaultType="bar"
+              metrics={[{ key: 'value', label: 'Charging Sessions', color: '#16a34a' }]} />
+            <DynamicChart title="Monthly Avg Passengers" sub="Average passengers per trip per month"
+              data={monthlyPassengers} height={230} defaultType="line"
+              metrics={[{ key: 'value', label: 'Avg Passengers', color: '#0891b2', format: v => Number(v).toFixed(1) }]} />
+          </div>
+
+          <div className="charts-grid-2">
+            <DynamicChart title="Monthly Workshop Visits" sub="Maintenance/workshop visits per month"
+              data={monthlyWorkshop} height={230} defaultType="bar"
+              metrics={[{ key: 'value', label: 'Workshop Visits', color: '#7c3aed' }]} />
+            <DynamicChart title="Monthly Total Expense (₹)" sub="Operational costs per month"
+              data={monthlyExp} height={230} defaultType="bar"
+              metrics={[{ key: 'value', label: 'Expense', color: '#ea580c', format: fmtCurrency }]} yTickFormatter={fmtK} />
+          </div>
+
+          <div style={{ marginTop: '20px' }}>
+            <DynamicChart title="Overspeed Events — Top 15 Vehicles" sub="Vehicles with the most speed-limit violations"
+              data={carsByOverspeedCount} xKey="vehicle" height={260} defaultType="bar" types={['bar', 'line']}
+              xTickProps={{ angle: -35, textAnchor: 'end', interval: 0, height: 50 }}
+              metrics={[{ key: 'overspeedTrips', label: 'Overspeed Trips', color: '#dc2626', colorFn: (r) => (r.overspeedTrips >= 8 ? '#7f1d1d' : '#dc2626') }]} />
+          </div>
+        </>
+      )}
+
+      {/* ── BRAND VIEW ── */}
+      {activeView === 'brand' && (
         <>
           <div className="charts-grid-2" style={{ marginBottom: 0 }}>
             <DynamicChart title="Total Distance by Brand (km)" sub="Cumulative distance per brand"
