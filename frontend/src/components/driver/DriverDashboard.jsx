@@ -183,9 +183,6 @@ export default function DriverDashboard({ user, onLogout }) {
       <aside className="sidebar">
         {/* Logo */}
         <div className="sidebar-logo">
-          <div className="sidebar-logo-icon" style={{ background: 'transparent', padding: 0, boxShadow: 'none' }}>
-            <img src={logoImg} alt="Logo" style={{ width: '40px', height: '40px', objectFit: 'contain', marginLeft: '-8px' }} />
-          </div>
           <div className="sidebar-logo-text">
             <div className="sidebar-logo-title">EV Fleet</div>
             <div className="sidebar-logo-sub">Driver Portal</div>
