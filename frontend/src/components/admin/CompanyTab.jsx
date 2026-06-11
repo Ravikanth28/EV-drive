@@ -1,45 +1,86 @@
 import { useContext, useMemo, useState } from 'react'
 import {
-  BarChart, Bar, LineChart, Line, AreaChart, Area, ComposedChart,
+  BarChart, Bar, ComposedChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell,
 } from 'recharts'
 import { DataContext } from '../../App'
 import {
-  groupBy, monthlyAgg, countWhere, sumBy, fmtNum, fmtCurrency, COLORS,
+  groupBy, monthlyAgg, countWhere, sumBy, fmtNum, fmtCurrency,
+  getMonthKey, getMonthLabel,
 } from '../../utils/dataUtils'
+import ChartCard from '../shared/ChartCard'
+import DynamicChart from '../shared/DynamicChart'
+import SortableTable from '../shared/SortableTable'
+import FilterPanel, { FilterGroup, FilterChips, FilterRange, FilterCheckboxGroup } from '../shared/FilterPanel'
+
+const CHART_OPTIONS = [
+  { value: 'revexp', label: 'Revenue vs Expense' },
+  { value: 'expense', label: 'Monthly Expense' },
+  { value: 'revenue', label: 'Monthly Revenue' },
+  { value: 'profit', label: 'Net Profit' },
+  { value: 'topexp', label: 'Top Expense Months' },
+  { value: 'breakdown', label: 'Breakdowns' },
+  { value: 'workshop', label: 'Workshop Visits' },
+  { value: 'overspeed', label: 'Overspeed' },
+  { value: 'brand', label: 'By Brand' },
+]
+const ALL_CHART_KEYS = CHART_OPTIONS.map(c => c.value)
+
+const fmtK = v => '₹' + fmtNum(v / 1000) + 'k'
 
 export default function CompanyTab() {
   const data = useContext(DataContext)
-  const [summarySortKey, setSummarySortKey] = useState('revenue')
-  const [summarySortDir, setSummarySortDir] = useState('desc')
 
-  // ── Fleet-wide monthly aggregations ───────────────────────────────────────
-  const monthlyExpense = useMemo(
-    () => monthlyAgg(data, 'Total_Expense'),
-    [data]
-  )
+  // ── Available months (chronological) ──────────────────────────────────────
+  const allMonths = useMemo(() => {
+    const keys = [...new Set(data.map(r => getMonthKey(r.Date)).filter(Boolean))].sort()
+    return keys
+  }, [data])
 
-  const monthlyRevenue = useMemo(
-    () => monthlyAgg(data, 'Income_Generated'),
-    [data]
-  )
+  const monthTripCounts = useMemo(() => {
+    const byMonth = groupBy(data, r => getMonthKey(r.Date))
+    return allMonths.map(k => (byMonth[k] || []).length)
+  }, [data, allMonths])
 
-  const monthlyBreakdown = useMemo(
-    () => monthlyAgg(data, null, rows => countWhere(rows, r => r.Breakdown === 'Yes')),
-    [data]
-  )
+  // ── Filter state ──────────────────────────────────────────────────────────
+  const [range, setRange] = useState([0, 0])
+  const [profitFilter, setProfitFilter] = useState('all')   // all | profit | loss
+  const [shownCharts, setShownCharts] = useState(ALL_CHART_KEYS)
 
-  const monthlyWorkshop = useMemo(
-    () => monthlyAgg(data, null, rows => countWhere(rows, r => r.Workshop_Visit === 'Yes')),
-    [data]
-  )
+  // Keep range valid when months load
+  const safeRange = useMemo(() => {
+    const hi = allMonths.length ? allMonths.length - 1 : 0
+    let [lo, h] = range
+    if (h === 0 && range[0] === 0) return [0, hi]      // initial
+    lo = Math.min(Math.max(0, lo), hi)
+    h = Math.min(Math.max(lo, h), hi)
+    return [lo, h]
+  }, [range, allMonths.length])
 
-  const monthlyOvespeed = useMemo(
-    () => monthlyAgg(data, null, rows => countWhere(rows, r => r.Overspeed === 'Yes')),
-    [data]
-  )
+  const [loIdx, hiIdx] = safeRange
+  const loKey = allMonths[loIdx]
+  const hiKey = allMonths[hiIdx]
 
-  // ── Monthly profit = revenue – expense ────────────────────────────────────
+  // ── Data filtered by selected period ──────────────────────────────────────
+  const fdata = useMemo(() => {
+    if (!allMonths.length) return data
+    return data.filter(r => {
+      const k = getMonthKey(r.Date)
+      return k && k >= loKey && k <= hiKey
+    })
+  }, [data, allMonths.length, loKey, hiKey])
+
+  const periodLabel = allMonths.length
+    ? `${getMonthLabel(loKey + '-01')} – ${getMonthLabel(hiKey + '-01')}`
+    : 'All time'
+
+  // ── Aggregations (over filtered data) ─────────────────────────────────────
+  const monthlyExpense  = useMemo(() => monthlyAgg(fdata, 'Total_Expense'), [fdata])
+  const monthlyRevenue  = useMemo(() => monthlyAgg(fdata, 'Income_Generated'), [fdata])
+  const monthlyBreakdown = useMemo(() => monthlyAgg(fdata, null, rows => countWhere(rows, r => r.Breakdown === 'Yes')), [fdata])
+  const monthlyWorkshop  = useMemo(() => monthlyAgg(fdata, null, rows => countWhere(rows, r => r.Workshop_Visit === 'Yes')), [fdata])
+  const monthlyOvespeed  = useMemo(() => monthlyAgg(fdata, null, rows => countWhere(rows, r => r.Overspeed === 'Yes')), [fdata])
+
   const monthlyProfit = useMemo(() => {
     const revMap = Object.fromEntries(monthlyRevenue.map(r => [r.month, r.value]))
     return monthlyExpense.map(r => ({
@@ -50,38 +91,29 @@ export default function CompanyTab() {
     }))
   }, [monthlyExpense, monthlyRevenue])
 
-  const sortedMonthlyProfit = useMemo(() => {
-    const rows = [...monthlyProfit]
-    const direction = summarySortDir === 'asc' ? 1 : -1
+  const topExpenseMonths = useMemo(
+    () => [...monthlyExpense].sort((a, b) => b.value - a.value).slice(0, 10),
+    [monthlyExpense]
+  )
 
-    rows.sort((a, b) => {
-      if (summarySortKey === 'month') {
-        return direction * a.month.localeCompare(b.month)
-      }
-
-      return direction * ((a[summarySortKey] ?? 0) - (b[summarySortKey] ?? 0))
-    })
-
-    return rows
-  }, [monthlyProfit, summarySortDir, summarySortKey])
-
-  // ── Fleet-wide KPIs ───────────────────────────────────────────────────────
   const stats = useMemo(() => {
-    const totalRevenue   = sumBy(data, 'Income_Generated')
-    const totalExpense   = sumBy(data, 'Total_Expense')
-    const totalProfit    = totalRevenue - totalExpense
-    const totalBreakdown = countWhere(data, r => r.Breakdown === 'Yes')
-    const totalWorkshop  = countWhere(data, r => r.Workshop_Visit === 'Yes')
-    const totalOverspeed = countWhere(data, r => r.Overspeed === 'Yes')
-    const totalTrips     = data.length
-    const uniqueVehicles = new Set(data.map(r => r.Vehicle_ID)).size
-    const uniqueDrivers  = new Set(data.map(r => r.Driver_ID)).size
-    return { totalRevenue, totalExpense, totalProfit, totalBreakdown, totalWorkshop, totalOverspeed, totalTrips, uniqueVehicles, uniqueDrivers }
-  }, [data])
+    const totalRevenue   = sumBy(fdata, 'Income_Generated')
+    const totalExpense   = sumBy(fdata, 'Total_Expense')
+    return {
+      totalRevenue,
+      totalExpense,
+      totalProfit: totalRevenue - totalExpense,
+      totalBreakdown: countWhere(fdata, r => r.Breakdown === 'Yes'),
+      totalWorkshop:  countWhere(fdata, r => r.Workshop_Visit === 'Yes'),
+      totalOverspeed: countWhere(fdata, r => r.Overspeed === 'Yes'),
+      totalTrips:     fdata.length,
+      uniqueVehicles: new Set(fdata.map(r => r.Vehicle_ID)).size,
+      uniqueDrivers:  new Set(fdata.map(r => r.Driver_ID)).size,
+    }
+  }, [fdata])
 
-  // ── Expense by category (vehicle model / brand) ───────────────────────────
   const expenseByBrand = useMemo(() => {
-    const byBrand = groupBy(data, 'Brand')
+    const byBrand = groupBy(fdata, 'Brand')
     return Object.entries(byBrand)
       .map(([brand, rows]) => ({
         brand,
@@ -89,335 +121,243 @@ export default function CompanyTab() {
         revenue: Math.round(sumBy(rows, 'Income_Generated')),
       }))
       .sort((a, b) => b.expense - a.expense)
-  }, [data])
+  }, [fdata])
 
-  // ── Top 10 expense months ─────────────────────────────────────────────────
-  const topExpenseMonths = useMemo(
-    () => [...monthlyExpense].sort((a, b) => b.value - a.value).slice(0, 10),
-    [monthlyExpense]
-  )
+  // ── Summary table rows (with profit filter) ───────────────────────────────
+  const summaryRows = useMemo(() => {
+    return monthlyProfit
+      .filter(r => profitFilter === 'all' || (profitFilter === 'profit' ? r.profit >= 0 : r.profit < 0))
+      .map(row => ({
+        ...row,
+        breakdowns: monthlyBreakdown.find(b => b.month === row.month)?.value ?? 0,
+        workshops:  monthlyWorkshop.find(w => w.month === row.month)?.value ?? 0,
+        overspeed:  monthlyOvespeed.find(o => o.month === row.month)?.value ?? 0,
+      }))
+  }, [monthlyProfit, monthlyBreakdown, monthlyWorkshop, monthlyOvespeed, profitFilter])
+
+  const show = key => shownCharts.includes(key)
+
+  function resetFilters() {
+    setRange([0, allMonths.length ? allMonths.length - 1 : 0])
+    setProfitFilter('all')
+    setShownCharts(ALL_CHART_KEYS)
+  }
 
   return (
     <div className="tab-content">
-      {/* Page header */}
       <div className="page-header">
         <div className="page-header-left">
           <p className="section-title">Company Overview</p>
-          <p className="section-sub">Fleet-wide monthly expenses, revenue, profit & breakdown analysis</p>
+          <p className="section-sub">Fleet-wide expenses, revenue, profit &amp; breakdown analysis · <strong>{periodLabel}</strong></p>
         </div>
       </div>
 
-      {/* ── KPI Cards ── */}
-      <div className="stat-cards" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
-        <div className="stat-card green">
-          <span className="label">Total Revenue</span>
-          <span className="value" style={{ fontSize: '18px' }}>{fmtCurrency(stats.totalRevenue)}</span>
-        </div>
-        <div className="stat-card orange">
-          <span className="label">Total Expense</span>
-          <span className="value" style={{ fontSize: '18px' }}>{fmtCurrency(stats.totalExpense)}</span>
-        </div>
-        <div className={`stat-card ${stats.totalProfit >= 0 ? 'blue' : 'red'}`}>
-          <span className="label">Net Profit</span>
-          <span className="value" style={{ fontSize: '18px' }}>{fmtCurrency(stats.totalProfit)}</span>
-        </div>
-        <div className="stat-card blue">
-          <span className="label">Total Trips</span>
-          <span className="value">{fmtNum(stats.totalTrips)}</span>
-        </div>
-        <div className="stat-card cyan">
-          <span className="label">Vehicles</span>
-          <span className="value">{stats.uniqueVehicles}</span>
-        </div>
-        <div className="stat-card purple">
-          <span className="label">Drivers</span>
-          <span className="value">{stats.uniqueDrivers}</span>
-        </div>
-        <div className="stat-card red">
-          <span className="label">Total Breakdowns</span>
-          <span className="value">{stats.totalBreakdown}</span>
-        </div>
-        <div className="stat-card orange">
-          <span className="label">Workshop Visits</span>
-          <span className="value">{stats.totalWorkshop}</span>
-        </div>
-        <div className="stat-card red">
-          <span className="label">Overspeed Events</span>
-          <span className="value">{stats.totalOverspeed}</span>
-        </div>
-      </div>
-
-      {/* ── Row 1: Revenue vs Expense (Composed Chart) ── */}
-      <ChartCard
-        title="Monthly Revenue vs Expense (₹)"
-        sub="Side-by-side comparison of income generated vs operational costs across all vehicles"
-      >
-        <ResponsiveContainer width="100%" height={280}>
-          <ComposedChart data={monthlyProfit} margin={{ top: 10, right: 30, bottom: 20, left: 30 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis
-              dataKey="month"
-              tick={{ fontSize: 11 }}
-              label={{ value: 'Month', position: 'insideBottom', offset: -12, fontSize: 12 }}
+      <div className="analytics-layout">
+        {/* ── FILTER PANEL ── */}
+        <FilterPanel onReset={resetFilters}>
+          <FilterGroup label="Reporting period">
+            <FilterRange
+              min={0}
+              max={allMonths.length ? allMonths.length - 1 : 0}
+              value={safeRange}
+              onChange={setRange}
+              histogram={monthTripCounts}
+              format={i => getMonthLabel((allMonths[i] || '') + '-01')}
+              fromLabel="From month"
+              toLabel="To month"
             />
-            <YAxis
-              tick={{ fontSize: 10 }}
-              tickFormatter={v => '₹' + fmtNum(v / 1000) + 'k'}
-              label={{ value: 'Amount (₹)', angle: -90, position: 'insideLeft', offset: -15, fontSize: 12 }}
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px', fontWeight: 600 }}>
+              {periodLabel}
+            </div>
+          </FilterGroup>
+
+          <FilterGroup label="Profitability (table)">
+            <FilterChips
+              options={[{ value: 'all', label: 'All' }, { value: 'profit', label: 'Profit' }, { value: 'loss', label: 'Loss' }]}
+              value={profitFilter}
+              onChange={setProfitFilter}
             />
-            <Tooltip formatter={(v, name) => [fmtCurrency(v), name]} />
-            <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: '10px' }} />
-            <Bar dataKey="revenue" name="Revenue (₹)" fill="#16a34a" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="expense" name="Expense (₹)" fill="#ea580c" radius={[4, 4, 0, 0]} />
-            <Line type="monotone" dataKey="profit" name="Net Profit (₹)" stroke="#2563eb" strokeWidth={2.5} dot={{ r: 4 }} />
-          </ComposedChart>
-        </ResponsiveContainer>
-      </ChartCard>
+          </FilterGroup>
 
-      {/* ── Row 2: Monthly Expense + Monthly Revenue ── */}
-      <div className="charts-grid-2">
-        <ChartCard title="Monthly Total Expense (₹)" sub="Total operational costs across the entire fleet per month">
-          <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={monthlyExpense} margin={{ top: 5, right: 20, bottom: 20, left: 30 }}>
-              <defs>
-                <linearGradient id="expGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#ea580c" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#ea580c" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis
-                dataKey="month"
-                tick={{ fontSize: 11 }}
-                label={{ value: 'Month', position: 'insideBottom', offset: -12, fontSize: 11 }}
-              />
-              <YAxis
-                tick={{ fontSize: 10 }}
-                tickFormatter={v => '₹' + fmtNum(v / 1000) + 'k'}
-                label={{ value: 'Expense (₹)', angle: -90, position: 'insideLeft', offset: -15, fontSize: 11 }}
-              />
-              <Tooltip formatter={v => [fmtCurrency(v), 'Total Expense']} />
-              <Legend verticalAlign="top" />
-              <Area type="monotone" dataKey="value" name="Total Expense (₹)" stroke="#ea580c" fill="url(#expGrad)" strokeWidth={2} dot={{ r: 4 }} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </ChartCard>
+          <FilterGroup label="Visible charts" action={
+            <button type="button" className="filter-reset"
+              onClick={() => setShownCharts(shownCharts.length === ALL_CHART_KEYS.length ? [] : ALL_CHART_KEYS)}>
+              {shownCharts.length === ALL_CHART_KEYS.length ? 'Hide all' : 'Show all'}
+            </button>
+          }>
+            <FilterCheckboxGroup options={CHART_OPTIONS} value={shownCharts} onChange={setShownCharts} />
+          </FilterGroup>
+        </FilterPanel>
 
-        <ChartCard title="Monthly Total Revenue (₹)" sub="Total income generated across the entire fleet per month">
-          <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={monthlyRevenue} margin={{ top: 5, right: 20, bottom: 20, left: 30 }}>
-              <defs>
-                <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#16a34a" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#16a34a" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis
-                dataKey="month"
-                tick={{ fontSize: 11 }}
-                label={{ value: 'Month', position: 'insideBottom', offset: -12, fontSize: 11 }}
-              />
-              <YAxis
-                tick={{ fontSize: 10 }}
-                tickFormatter={v => '₹' + fmtNum(v / 1000) + 'k'}
-                label={{ value: 'Revenue (₹)', angle: -90, position: 'insideLeft', offset: -15, fontSize: 11 }}
-              />
-              <Tooltip formatter={v => [fmtCurrency(v), 'Total Revenue']} />
-              <Legend verticalAlign="top" />
-              <Area type="monotone" dataKey="value" name="Total Revenue (₹)" stroke="#16a34a" fill="url(#revGrad)" strokeWidth={2} dot={{ r: 4 }} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </ChartCard>
-      </div>
+        {/* ── CONTENT ── */}
+        <div>
+          {/* KPI Cards */}
+          <div className="stat-cards" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
+            <div className="stat-card green"><span className="label">Total Revenue</span><span className="value" style={{ fontSize: '18px' }}>{fmtCurrency(stats.totalRevenue)}</span></div>
+            <div className="stat-card orange"><span className="label">Total Expense</span><span className="value" style={{ fontSize: '18px' }}>{fmtCurrency(stats.totalExpense)}</span></div>
+            <div className={`stat-card ${stats.totalProfit >= 0 ? 'blue' : 'red'}`}><span className="label">Net Profit</span><span className="value" style={{ fontSize: '18px' }}>{fmtCurrency(stats.totalProfit)}</span></div>
+            <div className="stat-card blue"><span className="label">Total Trips</span><span className="value">{fmtNum(stats.totalTrips)}</span></div>
+            <div className="stat-card cyan"><span className="label">Vehicles</span><span className="value">{stats.uniqueVehicles}</span></div>
+            <div className="stat-card purple"><span className="label">Drivers</span><span className="value">{stats.uniqueDrivers}</span></div>
+            <div className="stat-card red"><span className="label">Total Breakdowns</span><span className="value">{stats.totalBreakdown}</span></div>
+            <div className="stat-card orange"><span className="label">Workshop Visits</span><span className="value">{stats.totalWorkshop}</span></div>
+            <div className="stat-card red"><span className="label">Overspeed Events</span><span className="value">{stats.totalOverspeed}</span></div>
+          </div>
 
-      {/* ── Row 3: Monthly Net Profit ── */}
-      <ChartCard title="Monthly Net Profit / Loss (₹)" sub="Net profit = Revenue − Expense. Red bars indicate a loss month.">
-        <ResponsiveContainer width="100%" height={240}>
-          <BarChart data={monthlyProfit} margin={{ top: 5, right: 30, bottom: 20, left: 30 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis
-              dataKey="month"
-              tick={{ fontSize: 11 }}
-              label={{ value: 'Month', position: 'insideBottom', offset: -12, fontSize: 11 }}
-            />
-            <YAxis
-              tick={{ fontSize: 10 }}
-              tickFormatter={v => '₹' + fmtNum(v / 1000) + 'k'}
-              label={{ value: 'Net Profit (₹)', angle: -90, position: 'insideLeft', offset: -15, fontSize: 11 }}
-            />
-            <Tooltip formatter={v => [fmtCurrency(v), 'Net Profit']} />
-            <Legend verticalAlign="top" />
-            <Bar dataKey="profit" name="Net Profit (₹)" radius={[4, 4, 0, 0]}>
-              {monthlyProfit.map((entry, i) => (
-                <Cell key={i} fill={entry.profit >= 0 ? '#16a34a' : '#dc2626'} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </ChartCard>
-
-      {/* ── Row 4: Breakdown + Workshop ── */}
-      <div className="charts-grid-2">
-        <ChartCard title="Monthly Breakdown Events" sub="Total vehicle breakdowns reported fleet-wide per month">
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={monthlyBreakdown} margin={{ top: 5, right: 20, bottom: 20, left: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis
-                dataKey="month"
-                tick={{ fontSize: 11 }}
-                label={{ value: 'Month', position: 'insideBottom', offset: -12, fontSize: 11 }}
-              />
-              <YAxis
-                tick={{ fontSize: 11 }}
-                label={{ value: 'Breakdowns', angle: -90, position: 'insideLeft', fontSize: 11 }}
-              />
-              <Tooltip formatter={v => [v, 'Breakdown Events']} />
-              <Legend verticalAlign="top" />
-              <Bar dataKey="value" name="Breakdown Events" fill="#dc2626" radius={[4, 4, 0, 0]}>
-                {monthlyBreakdown.map((entry, i) => (
-                  <Cell key={i} fill={entry.value > 10 ? '#7f1d1d' : entry.value > 5 ? '#dc2626' : '#fca5a5'} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-
-        <ChartCard title="Monthly Workshop Visits" sub="Total fleet-wide maintenance workshop visits per month">
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={monthlyWorkshop} margin={{ top: 5, right: 20, bottom: 20, left: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis
-                dataKey="month"
-                tick={{ fontSize: 11 }}
-                label={{ value: 'Month', position: 'insideBottom', offset: -12, fontSize: 11 }}
-              />
-              <YAxis
-                tick={{ fontSize: 11 }}
-                label={{ value: 'Visits', angle: -90, position: 'insideLeft', fontSize: 11 }}
-              />
-              <Tooltip formatter={v => [v, 'Workshop Visits']} />
-              <Legend verticalAlign="top" />
-              <Bar dataKey="value" name="Workshop Visits" fill="#7c3aed" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-      </div>
-
-      {/* ── Row 5: Overspeed fleet-wide ── */}
-      <ChartCard title="Monthly Overspeed Events (Fleet-wide)" sub="Total speed-limit violations across all vehicles and drivers per month">
-        <ResponsiveContainer width="100%" height={240}>
-          <LineChart data={monthlyOvespeed} margin={{ top: 5, right: 30, bottom: 20, left: 10 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis
-              dataKey="month"
-              tick={{ fontSize: 11 }}
-              label={{ value: 'Month', position: 'insideBottom', offset: -12, fontSize: 11 }}
-            />
-            <YAxis
-              tick={{ fontSize: 11 }}
-              label={{ value: 'Overspeed Events', angle: -90, position: 'insideLeft', fontSize: 11 }}
-            />
-            <Tooltip formatter={v => [v, 'Overspeed Events']} />
-            <Legend verticalAlign="top" />
-            <Line type="monotone" dataKey="value" name="Overspeed Events" stroke="#dc2626" strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-          </LineChart>
-        </ResponsiveContainer>
-      </ChartCard>
-
-      {/* ── Row 6: Expense & Revenue by Brand ── */}
-      <ChartCard title="Revenue vs Expense by Brand (₹)" sub="Comparative brand-level revenue and expense across the entire fleet">
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={expenseByBrand} margin={{ top: 10, right: 30, bottom: 20, left: 30 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis
-              dataKey="brand"
-              tick={{ fontSize: 11 }}
-              label={{ value: 'Brand', position: 'insideBottom', offset: -12, fontSize: 12 }}
-            />
-            <YAxis
-              tick={{ fontSize: 10 }}
-              tickFormatter={v => '₹' + fmtNum(v / 1000) + 'k'}
-              label={{ value: 'Amount (₹)', angle: -90, position: 'insideLeft', offset: -15, fontSize: 12 }}
-            />
-            <Tooltip formatter={(v, name) => [fmtCurrency(v), name]} />
-            <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: '10px' }} />
-            <Bar dataKey="revenue" name="Revenue (₹)" fill="#16a34a" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="expense" name="Expense (₹)" fill="#ea580c" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </ChartCard>
-
-      {/* ── Monthly Summary Table ── */}
-      <div className="chart-wrapper" style={{ marginTop: '20px', overflowX: 'auto' }}>
-        <div className="chart-title">Monthly Financial Summary</div>
-        <div className="chart-sub">Complete month-wise breakdown of revenue, expense, and net profit across all vehicles</div>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', justifyContent: 'flex-end', margin: '10px 0 12px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 700, color: 'var(--muted)' }}>
-            Sort by
-            <select
-              className="prediction-input"
-              style={{ width: '150px', minHeight: '36px' }}
-              value={summarySortKey}
-              onChange={e => setSummarySortKey(e.target.value)}
+          {/* Revenue vs Expense (Composed — preserved original visualization) */}
+          {show('revexp') && (
+            <ChartCard
+              title="Monthly Revenue vs Expense (₹)"
+              sub="Side-by-side income vs operational cost, with the net-profit trend line"
+              style={{ marginBottom: '20px' }}
             >
-              <option value="month">Month</option>
-              <option value="revenue">Revenue</option>
-              <option value="expense">Expense</option>
-              <option value="profit">Net Profit</option>
-            </select>
-          </label>
-          <button
-            type="button"
-            className="prediction-reset-btn"
-            onClick={() => setSummarySortDir(prev => (prev === 'asc' ? 'desc' : 'asc'))}
-            style={{ minHeight: '36px', padding: '0 14px' }}
-          >
-            {summarySortDir === 'asc' ? 'Ascending' : 'Descending'}
-          </button>
-        </div>
-        <table className="data-table">
-          <thead>
-            <tr>
-              {['Month', 'Total Revenue (₹)', 'Total Expense (₹)', 'Net Profit (₹)', 'Breakdowns', 'Workshop Visits', 'Overspeed Events'].map(h => (
-                <th key={h}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {sortedMonthlyProfit.map((row) => {
-              const bd = monthlyBreakdown.find(b => b.month === row.month)?.value ?? 0
-              const ws = monthlyWorkshop.find(w => w.month === row.month)?.value ?? 0
-              const os = monthlyOvespeed.find(o => o.month === row.month)?.value ?? 0
-              return (
-                <tr key={row.month}>
-                  <td style={{ fontWeight: '700' }}>{row.month}</td>
-                  <td style={{ color: 'var(--success)', fontWeight: '600' }}>{fmtCurrency(row.revenue)}</td>
-                  <td style={{ color: 'var(--warning)', fontWeight: '600' }}>{fmtCurrency(row.expense)}</td>
-                  <td>
-                    <span style={{ color: row.profit >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: '700' }}>
-                      {fmtCurrency(row.profit)}
-                    </span>
-                  </td>
-                  <td><span className={`badge ${bd > 5 ? 'badge-red' : 'badge-orange'}`}>{bd}</span></td>
-                  <td>{ws}</td>
-                  <td><span className={`badge ${os > 20 ? 'badge-red' : 'badge-orange'}`}>{os}</span></td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
-}
+              <ResponsiveContainer width="100%" height={280}>
+                <ComposedChart data={monthlyProfit} margin={{ top: 10, right: 30, bottom: 20, left: 30 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#eef0f3" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#868c98' }} tickLine={false} axisLine={{ stroke: '#e8e9ee' }} label={{ value: 'Month', position: 'insideBottom', offset: -12, fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 10, fill: '#868c98' }} tickLine={false} axisLine={false} tickFormatter={fmtK} />
+                  <Tooltip formatter={(v, name) => [fmtCurrency(v), name]} contentStyle={{ borderRadius: 10, border: '1px solid #e8e9ee', fontSize: 12 }} />
+                  <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: '10px', fontSize: 12 }} />
+                  <Bar dataKey="revenue" name="Revenue (₹)" fill="#16a34a" radius={[5, 5, 0, 0]} />
+                  <Bar dataKey="expense" name="Expense (₹)" fill="#ea580c" radius={[5, 5, 0, 0]} />
+                  <Line type="monotone" dataKey="profit" name="Net Profit (₹)" stroke="#2563eb" strokeWidth={2.5} dot={{ r: 4 }} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          )}
 
-function ChartCard({ title, sub, children }) {
-  return (
-    <div className="chart-wrapper" style={{ marginBottom: '20px' }}>
-      <div className="chart-title">{title}</div>
-      {sub && <div className="chart-sub">{sub}</div>}
-      {children}
+          {/* Expense + Revenue (dynamic) */}
+          {(show('expense') || show('revenue')) && (
+            <div className="charts-grid-2">
+              {show('expense') && (
+                <DynamicChart
+                  title="Monthly Total Expense (₹)"
+                  sub="Operational costs across the fleet per month"
+                  data={monthlyExpense}
+                  defaultType="area"
+                  metrics={[{ key: 'value', label: 'Total Expense', color: '#ea580c', format: fmtCurrency }]}
+                  yTickFormatter={fmtK}
+                />
+              )}
+              {show('revenue') && (
+                <DynamicChart
+                  title="Monthly Total Revenue (₹)"
+                  sub="Income generated across the fleet per month"
+                  data={monthlyRevenue}
+                  defaultType="area"
+                  metrics={[{ key: 'value', label: 'Total Revenue', color: '#16a34a', format: fmtCurrency }]}
+                  yTickFormatter={fmtK}
+                />
+              )}
+            </div>
+          )}
+
+          {/* Net profit (dynamic, colored by sign) */}
+          {show('profit') && (
+            <DynamicChart
+              title="Monthly Net Profit / Loss (₹)"
+              sub="Net profit = Revenue − Expense. Red indicates a loss month."
+              data={monthlyProfit}
+              defaultType="bar"
+              metrics={[{ key: 'profit', label: 'Net Profit', color: '#16a34a', format: fmtCurrency, colorFn: r => (r.profit >= 0 ? '#16a34a' : '#dc2626') }]}
+              yTickFormatter={fmtK}
+            />
+          )}
+
+          {/* Extra chart: top expense months */}
+          {show('topexp') && (
+            <div style={{ marginTop: '20px' }}>
+              <DynamicChart
+                title="Top Expense Months (₹)"
+                sub="The costliest months in the selected period, ranked highest first"
+                data={topExpenseMonths}
+                defaultType="bar"
+                types={['bar', 'line']}
+                metrics={[{ key: 'value', label: 'Expense', color: '#b45309', format: fmtCurrency }]}
+                yTickFormatter={fmtK}
+              />
+            </div>
+          )}
+
+          {/* Breakdown + Workshop (dynamic) */}
+          {(show('breakdown') || show('workshop')) && (
+            <div className="charts-grid-2" style={{ marginTop: '20px' }}>
+              {show('breakdown') && (
+                <DynamicChart
+                  title="Monthly Breakdown Events"
+                  sub="Total vehicle breakdowns reported fleet-wide per month"
+                  data={monthlyBreakdown}
+                  defaultType="bar"
+                  metrics={[{ key: 'value', label: 'Breakdowns', color: '#dc2626', colorFn: r => (r.value > 10 ? '#7f1d1d' : r.value > 5 ? '#dc2626' : '#fca5a5') }]}
+                />
+              )}
+              {show('workshop') && (
+                <DynamicChart
+                  title="Monthly Workshop Visits"
+                  sub="Total fleet-wide maintenance workshop visits per month"
+                  data={monthlyWorkshop}
+                  defaultType="bar"
+                  metrics={[{ key: 'value', label: 'Workshop Visits', color: '#7c3aed' }]}
+                />
+              )}
+            </div>
+          )}
+
+          {/* Overspeed (dynamic) */}
+          {show('overspeed') && (
+            <div style={{ marginTop: '20px' }}>
+              <DynamicChart
+                title="Monthly Overspeed Events (Fleet-wide)"
+                sub="Total speed-limit violations across all vehicles and drivers per month"
+                data={monthlyOvespeed}
+                defaultType="line"
+                metrics={[{ key: 'value', label: 'Overspeed Events', color: '#dc2626' }]}
+              />
+            </div>
+          )}
+
+          {/* Revenue vs Expense by brand (preserved) */}
+          {show('brand') && (
+            <ChartCard title="Revenue vs Expense by Brand (₹)" sub="Comparative brand-level revenue and expense" style={{ marginTop: '20px', marginBottom: '20px' }}>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={expenseByBrand} margin={{ top: 10, right: 30, bottom: 20, left: 30 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#eef0f3" vertical={false} />
+                  <XAxis dataKey="brand" tick={{ fontSize: 11, fill: '#868c98' }} tickLine={false} axisLine={{ stroke: '#e8e9ee' }} />
+                  <YAxis tick={{ fontSize: 10, fill: '#868c98' }} tickLine={false} axisLine={false} tickFormatter={fmtK} />
+                  <Tooltip formatter={(v, name) => [fmtCurrency(v), name]} contentStyle={{ borderRadius: 10, border: '1px solid #e8e9ee', fontSize: 12 }} />
+                  <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: '10px', fontSize: 12 }} />
+                  <Bar dataKey="revenue" name="Revenue (₹)" fill="#16a34a" radius={[5, 5, 0, 0]} />
+                  <Bar dataKey="expense" name="Expense (₹)" fill="#ea580c" radius={[5, 5, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          )}
+
+          {/* Monthly summary — sortable */}
+          <div className="chart-wrapper" style={{ marginTop: '20px', overflowX: 'auto' }}>
+            <div className="chart-title">Monthly Financial Summary</div>
+            <div className="chart-sub">Month-wise revenue, expense and net profit — click any column to sort ascending / descending</div>
+            <div className="table-toolbar">
+              <span className="table-count">{summaryRows.length} month{summaryRows.length === 1 ? '' : 's'} shown</span>
+            </div>
+            <SortableTable
+              rows={summaryRows}
+              rowKey={r => r.month}
+              initialSort={{ key: 'revenue', dir: 'desc' }}
+              emptyMessage="No months match the current filters."
+              columns={[
+                { key: 'month', label: 'Month' },
+                { key: 'revenue', label: 'Total Revenue (₹)', align: 'right', render: r => <span style={{ color: 'var(--success)', fontWeight: 600 }}>{fmtCurrency(r.revenue)}</span> },
+                { key: 'expense', label: 'Total Expense (₹)', align: 'right', render: r => <span style={{ color: 'var(--warning)', fontWeight: 600 }}>{fmtCurrency(r.expense)}</span> },
+                { key: 'profit', label: 'Net Profit (₹)', align: 'right', render: r => <span style={{ color: r.profit >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>{fmtCurrency(r.profit)}</span> },
+                { key: 'breakdowns', label: 'Breakdowns', align: 'right', render: r => <span className={`badge ${r.breakdowns > 5 ? 'badge-red' : 'badge-orange'}`}>{r.breakdowns}</span> },
+                { key: 'workshops', label: 'Workshop Visits', align: 'right' },
+                { key: 'overspeed', label: 'Overspeed Events', align: 'right', render: r => <span className={`badge ${r.overspeed > 20 ? 'badge-red' : 'badge-orange'}`}>{r.overspeed}</span> },
+              ]}
+            />
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

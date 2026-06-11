@@ -23,6 +23,7 @@ export default defineConfig({
     },
   ],
   server: {
+    allowedHosts: ['.ngrok-free.dev', '.ngrok-free.app'],
     proxy: {
       '/api/predict': {
         target: 'https://ev-backend-z6gd.onrender.com',

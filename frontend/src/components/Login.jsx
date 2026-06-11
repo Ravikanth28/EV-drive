@@ -1,97 +1,6 @@
 import { useState } from 'react'
 import { uniqueValues } from '../utils/dataUtils'
-
-const S = {
-  page: {
-    minHeight: '100vh',
-    background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '20px',
-  },
-  box: {
-    background: '#fff',
-    borderRadius: '16px',
-    boxShadow: '0 25px 50px rgba(0,0,0,0.3)',
-    width: '100%',
-    maxWidth: '440px',
-    overflow: 'hidden',
-  },
-  header: {
-    background: 'linear-gradient(135deg, #1d4ed8, #2563eb)',
-    padding: '32px 32px 24px',
-    color: '#fff',
-  },
-  logo: { fontSize: '28px', marginBottom: '4px' },
-  title: { fontSize: '20px', fontWeight: '700', margin: 0 },
-  subtitle: { fontSize: '13px', opacity: 0.8, marginTop: '4px' },
-  body: { padding: '28px 32px 32px' },
-  roleRow: { display: 'flex', gap: '12px', marginBottom: '24px' },
-  roleBtn: (active) => ({
-    flex: 1,
-    padding: '12px',
-    borderRadius: '10px',
-    border: active ? '2px solid #2563eb' : '2px solid #e2e8f0',
-    background: active ? '#dbeafe' : '#f8fafc',
-    color: active ? '#1d4ed8' : '#64748b',
-    fontWeight: '600',
-    fontSize: '14px',
-    cursor: 'pointer',
-    transition: 'all 0.15s',
-    textAlign: 'center',
-  }),
-  roleIcon: { fontSize: '22px', display: 'block', marginBottom: '4px' },
-  fieldLabel: {
-    display: 'block',
-    fontSize: '12px',
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: '6px',
-    textTransform: 'uppercase',
-    letterSpacing: '0.04em',
-  },
-  input: {
-    width: '100%',
-    padding: '10px 14px',
-    border: '1px solid #e2e8f0',
-    borderRadius: '8px',
-    fontSize: '14px',
-    fontFamily: 'inherit',
-    outline: 'none',
-    transition: 'border-color 0.15s',
-    marginBottom: '16px',
-  },
-  submitBtn: {
-    width: '100%',
-    padding: '12px',
-    background: '#2563eb',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '8px',
-    fontSize: '15px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    marginTop: '8px',
-    transition: 'background 0.15s',
-  },
-  error: {
-    background: '#fee2e2',
-    color: '#dc2626',
-    padding: '10px 14px',
-    borderRadius: '8px',
-    fontSize: '13px',
-    marginBottom: '16px',
-  },
-  hint: {
-    background: '#f1f5f9',
-    borderRadius: '8px',
-    padding: '10px 14px',
-    fontSize: '12px',
-    color: '#64748b',
-    marginTop: '16px',
-  },
-}
+import loginBg from '../assets/mustang.png'
 
 export default function Login({ onLogin, data }) {
   const [role, setRole]     = useState('admin')
@@ -134,76 +43,231 @@ export default function Login({ onLogin, data }) {
   }
 
   return (
-    <div style={S.page}>
-      <div style={S.box}>
-        {/* Header */}
-        <div style={S.header}>
-          <div style={S.logo}>⚡</div>
-          <h1 style={S.title}>EV Fleet Dashboard</h1>
-          <p style={S.subtitle}>Fleet Management &amp; Analytics Platform</p>
+    <>
+      <style>{`
+        .login-page {
+          min-height: 100vh;
+          display: flex;
+          background: #0d0e12;
+        }
+        .login-left {
+          flex: 0 0 500px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 40px;
+          background: #121419;
+          z-index: 2;
+          box-shadow: 20px 0 40px rgba(0,0,0,0.5);
+        }
+        .login-right {
+          flex: 1;
+          position: relative;
+          display: flex;
+          align-items: flex-end;
+          justify-content: flex-end;
+          padding: 40px;
+        }
+        .login-right-overlay {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(90deg, #121419 0%, transparent 20%), linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 35%);
+        }
+        .login-quote {
+          position: relative;
+          z-index: 1;
+          max-width: 700px;
+          text-align: right;
+          animation: fadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both;
+        }
+        .quote-title {
+          position: absolute;
+          top: 40px;
+          left: 40px;
+          text-align: left;
+          z-index: 1;
+          max-width: 600px;
+          font-size: 56px;
+          font-weight: 800;
+          line-height: 1.1;
+          letter-spacing: -0.03em;
+          color: #fff;
+          margin: 0;
+          animation: fadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both;
+        }
+        .quote-title span {
+          color: #3b82f6;
+        }
+        .quote-text {
+          font-size: 15px;
+          color: #cbd5e1;
+          line-height: 1.6;
+        }
+
+        .login-box {
+          width: 100%;
+          max-width: 400px;
+          animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(30px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .login-header {
+          padding: 0 0 40px;
+          text-align: left;
+        }
+        .login-title {
+          font-size: 28px; font-weight: 800; margin: 0; letter-spacing: -0.03em; color: #fff;
+        }
+        .login-subtitle {
+          font-size: 15px; color: #94a3b8; margin-top: 8px; font-weight: 500;
+        }
+        .role-switcher {
+          display: flex; gap: 8px; margin-bottom: 32px; background: rgba(255,255,255,0.03); padding: 6px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); position: relative;
+        }
+        .role-slider {
+          position: absolute; top: 6px; bottom: 6px; left: 6px; width: calc(50% - 10px); background: #2563eb; border-radius: 12px; box-shadow: 0 6px 16px rgba(37,99,235,0.35); transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1); z-index: 0;
+        }
+        .role-slider.admin { transform: translateX(0); }
+        .role-slider.driver { transform: translateX(calc(100% + 8px)); }
+        .role-btn {
+          flex: 1; padding: 12px; border-radius: 12px; border: none; background: transparent; color: #94a3b8; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); display: flex; align-items: center; justify-content: center; gap: 8px; position: relative; z-index: 1;
+        }
+        .role-btn.active {
+          color: #fff;
+        }
+        .role-btn:not(.active):hover {
+          color: #fff;
+        }
+        .input-group {
+          margin-bottom: 24px;
+        }
+        .input-label {
+          display: block; font-size: 12px; font-weight: 600; color: #cbd5e1; margin-bottom: 8px; transition: color 0.2s;
+        }
+        .login-input {
+          width: 100%; padding: 16px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; font-size: 15px; color: #fff; font-family: inherit; outline: none; transition: all 0.2s;
+        }
+        .login-input:focus {
+          border-color: #3b82f6; background: rgba(255,255,255,0.06); box-shadow: 0 0 0 4px rgba(59,130,246,0.15);
+        }
+        .login-input:focus + .input-label, .input-group:focus-within .input-label {
+          color: #3b82f6;
+        }
+        .submit-btn {
+          width: 100%; padding: 18px; background: #fff; color: #0f172a; border: none; border-radius: 14px; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 8px; transition: all 0.2s; box-shadow: 0 8px 20px rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .submit-btn:hover {
+          transform: translateY(-2px); box-shadow: 0 12px 24px rgba(255,255,255,0.25); background: #f8fafc;
+        }
+        .submit-btn:active {
+          transform: translateY(0);
+        }
+        .error-msg {
+          background: rgba(220, 38, 38, 0.15); color: #fca5a5; padding: 12px 16px; border-radius: 12px; font-size: 13px; margin-bottom: 24px; border: 1px solid rgba(220, 38, 38, 0.3); display: flex; align-items: center; gap: 10px; animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+        }
+        @keyframes shake {
+          10%, 90% { transform: translate3d(-1px, 0, 0); }
+          20%, 80% { transform: translate3d(2px, 0, 0); }
+          30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+          40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+        .login-hint {
+          background: rgba(255,255,255,0.02); border-radius: 14px; padding: 20px; font-size: 12px; color: #94a3b8; margin-top: 40px; line-height: 1.6; border: 1px solid rgba(255,255,255,0.05);
+        }
+        .hint-code {
+          background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 6px; color: #e2e8f0; font-family: monospace; font-size: 11px;
+        }
+        @media (max-width: 1024px) {
+          .login-page { flex-direction: column; }
+          .login-left { flex: 1; padding: 40px 20px; box-shadow: none; }
+          .login-right { display: none; }
+        }
+      `}</style>
+      <div className="login-page">
+        {/* Left Side: Form */}
+        <div className="login-left">
+          <div className="login-box">
+            <div className="login-header">
+              <h1 className="login-title">EV Fleet Dashboard</h1>
+              <p className="login-subtitle">Sign in to your account</p>
+            </div>
+
+            <div className="role-switcher">
+              <div className={`role-slider ${role}`} />
+              {[
+                { key: 'admin',  icon: '🛡️', label: 'Admin'  },
+                { key: 'driver', icon: '🚗', label: 'Driver' },
+              ].map(({ key, icon, label }) => (
+                <button 
+                  key={key} 
+                  className={`role-btn ${role === key ? 'active' : ''}`}
+                  onClick={() => { setRole(key); setErr(''); setUser(''); setPass('') }}
+                >
+                  <span>{icon}</span>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <form onSubmit={handleSubmit}>
+              {err && (
+                <div className="error-msg">
+                  <span>⚠️</span> {err}
+                </div>
+              )}
+
+              <div className="input-group">
+                <label className="input-label">
+                  {role === 'admin' ? 'Administrator ID' : 'Driver ID'}
+                </label>
+                <input
+                  className="login-input"
+                  placeholder={role === 'admin' ? 'e.g. A001' : 'e.g. 4'}
+                  value={username}
+                  onChange={e => setUser(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="input-group">
+                <label className="input-label">Password</label>
+                <input
+                  className="login-input"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={e => setPass(e.target.value)}
+                  required
+                />
+              </div>
+
+              <button type="submit" className="submit-btn">
+                Sign In <span>→</span>
+              </button>
+            </form>
+
+            <div className="login-hint">
+              <strong style={{ color: '#cbd5e1', display: 'block', marginBottom: '8px' }}>Demo Credentials</strong>
+              Admin: <span className="hint-code">A001</span> - <span className="hint-code">A004</span> / <span className="hint-code">admin123</span><br />
+              Driver: any Driver ID / <span className="hint-code">driver123</span><br />
+              <div style={{ marginTop: '12px', opacity: 0.6, fontSize: '11px' }}>A001 manages drivers 4, 5, 10-12, 25, 26, 31, 33, 37</div>
+            </div>
+          </div>
         </div>
 
-        {/* Body */}
-        <div style={S.body}>
-          <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px', fontWeight: '500' }}>
-            Select your role to continue
-          </p>
-
-          {/* Role toggle */}
-          <div style={S.roleRow}>
-            {[
-              { key: 'admin',  icon: '🛡️', label: 'Admin'  },
-              { key: 'driver', icon: '🚗', label: 'Driver' },
-            ].map(({ key, icon, label }) => (
-              <button key={key} style={S.roleBtn(role === key)} onClick={() => { setRole(key); setErr(''); setUser(''); setPass('') }}>
-                <span style={S.roleIcon}>{icon}</span>
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {/* Form */}
-          <form onSubmit={handleSubmit}>
-            {err && <div style={S.error}>{err}</div>}
-
-            <label style={S.fieldLabel}>
-              {role === 'admin' ? 'Admin ID' : 'Driver ID'}
-            </label>
-            <input
-              style={S.input}
-              placeholder={role === 'admin' ? 'e.g. A001' : 'e.g. 4'}
-              value={username}
-              onChange={e => setUser(e.target.value)}
-              required
-            />
-
-            <label style={S.fieldLabel}>Password</label>
-            <input
-              style={S.input}
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={e => setPass(e.target.value)}
-              required
-            />
-
-            <button type="submit" style={S.submitBtn}
-              onMouseOver={e => (e.target.style.background = '#1d4ed8')}
-              onMouseOut={e => (e.target.style.background = '#2563eb')}
-            >
-              Sign In →
-            </button>
-          </form>
-
-          {/* Hint */}
-          <div style={S.hint}>
-            <strong>Demo credentials:</strong><br />
-            Admin: <code>A001</code> – <code>A004</code> / <code>admin123</code><br />
-            Driver: enter your Driver ID / <code>driver123</code><br />
-            <span style={{ fontSize: '11px', opacity: 0.8 }}>A001 → drivers 4,5,10–12,25,26,31,33,37</span>
+        {/* Right Side: Image & Text */}
+        <div className="login-right" style={{ background: `url(${loginBg}) center/cover no-repeat` }}>
+          <div className="login-right-overlay" />
+          <h2 className="quote-title">The future of <span>sustainable</span> fleet logistics.</h2>
+          <div className="login-quote">
+            <p className="quote-text">
+              Track real-time charging metrics, driver routes, and fleet efficiency across your entire electric vehicle network. Drive smarter, greener, and faster with actionable AI-powered insights.
+            </p>
           </div>
         </div>
       </div>
-    </div>
+    </>
   )
 }
