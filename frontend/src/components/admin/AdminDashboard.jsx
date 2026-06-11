@@ -5,6 +5,8 @@ import DriverTab  from './DriverTab'
 import VehicleTab from './VehicleTab'
 import CompanyTab from './CompanyTab'
 import OverviewTab from './OverviewTab'
+import { ShieldAlert, LogOut, Calendar } from 'lucide-react'
+import logoImg from '../../assets/logo.png'
 
 const NAV = [
   { key: 'overview', icon: '🏠', label: 'Dashboard', sub: 'High-level fleet summary' },

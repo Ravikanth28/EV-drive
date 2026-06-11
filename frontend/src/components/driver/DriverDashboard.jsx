@@ -11,6 +11,7 @@ import {
 } from '../../utils/dataUtils'
 import DynamicChart from '../shared/DynamicChart'
 import SortableTable from '../shared/SortableTable'
+import ChartCard from '../shared/ChartCard'
 import { LayoutDashboard, Ruler, Battery, CarFront, Map, BrainCircuit, Zap, User, LogOut, Calendar, Circle, PlugZap, Trophy, AlertTriangle } from 'lucide-react'
 import logoImg from '../../assets/logo.png'
 
@@ -435,7 +436,7 @@ export default function DriverDashboard({ user, onLogout }) {
 
           {/* ════════════════ BATTERY & CHARGE TAB ════════════════ */}
           {tab === 'battery' && (
-            <TabErrorBoundary>
+            <>
               {/* KPI Cards */}
               <div className="stat-cards">
                 <div className="stat-card green">
@@ -545,7 +546,7 @@ export default function DriverDashboard({ user, onLogout }) {
                   </tbody>
                 </table>
               </div>
-            </TabErrorBoundary>
+            </>
           )}
 
           {/* ════════════════ VEHICLE SPECS TAB ════════════════ */}
