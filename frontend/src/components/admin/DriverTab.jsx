@@ -208,7 +208,7 @@ export default function DriverTab() {
               { key: 'name', label: 'Driver', render: r => <div className="driver-row-clickable" onClick={() => handleDriverSelect(r.id)}><span style={{ fontWeight: 700 }}>{r.name}</span> <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>#{r.id}</span></div> },
               { key: 'trips', label: 'Trips', align: 'right' },
               { key: 'distance', label: 'Distance (km)', align: 'right', render: r => fmtNum(r.distance, 1) },
-              { key: 'overspeedPct', label: 'Overspeed %', align: 'right', render: r => <span className={`badge ${r.overspeedPct > 20 ? 'badge-red' : 'badge-orange'}`}>{r.overspeedPct.toFixed(1)}%</span> },
+              { key: 'overspeedCount', label: 'Overspeed Count', align: 'right', render: r => <span className={`badge ${r.overspeedCount > 20 ? 'badge-red' : 'badge-orange'}`}>{r.overspeedCount} ({r.overspeedPct.toFixed(1)}%)</span> },
               { key: 'income', label: 'Income (₹)', align: 'right', render: r => <span style={{ color: 'var(--success)' }}>{fmtCurrency(r.income)}</span> },
               { key: 'expense', label: 'Expense (₹)', align: 'right', render: r => <span style={{ color: 'var(--warning)' }}>{fmtCurrency(r.expense)}</span> },
               { key: 'profit', label: 'Net Profit (₹)', align: 'right', render: r => <span style={{ color: r.profit >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>{fmtCurrency(r.profit)}</span> },

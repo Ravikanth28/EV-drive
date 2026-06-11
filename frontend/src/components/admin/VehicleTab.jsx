@@ -46,6 +46,7 @@ export default function VehicleTab() {
   
   const [viewMode, setViewMode] = useState('cards') // 'cards' | 'brand' | 'individual'
   const [selectedVehicle, setVehicle] = useState(vehicleIds[0] ?? '')
+  const [activeView, setActiveView] = useState('cards') // 'cards' | 'fleet' | 'overview' | 'brand'
 
   // Fleet card filters
   const [cardFilter, setCardFilter] = useState('all')
@@ -120,15 +121,9 @@ export default function VehicleTab() {
     setViewMode('individual')
   }
 
-  // ── Selected-vehicle (last 3 months) ───────────────────────────────────────
+  // ── Selected-vehicle (all data from database) ───────────────────────────────
   const vRows = useMemo(() => {
-    const allVRows = data.filter(r => r.Vehicle_ID === selectedVehicle)
-    const dates = allVRows.map(r => r.Date).filter(Boolean).sort()
-    if (!dates.length) return allVRows
-    const latest = new Date(dates[dates.length - 1])
-    const cutoff = new Date(latest)
-    cutoff.setMonth(cutoff.getMonth() - 2); cutoff.setDate(1)
-    return allVRows.filter(r => r.Date && new Date(r.Date) >= cutoff)
+    return data.filter(r => r.Vehicle_ID === selectedVehicle)
   }, [data, selectedVehicle])
   const vInfo = useMemo(() => data.find(r => r.Vehicle_ID === selectedVehicle) || {}, [data, selectedVehicle])
 
@@ -170,6 +165,73 @@ export default function VehicleTab() {
     })).sort((a, b) => b.overspeedTrips - a.overspeedTrips).slice(0, 15)
   }, [data])
 
+  const fleetStatusCounts = useMemo(() => {
+    const counts = { Running: 0, Charging: 0, Workshop: 0, Other: 0 }
+    vehicleLatestStatus.forEach(v => {
+      const status = v.status || 'Other'
+      if (counts[status] !== undefined) {
+        counts[status]++
+      } else {
+        counts.Other++
+      }
+    })
+    return [
+      { name: 'Running', value: counts.Running, color: '#34d399' },
+      { name: 'Charging', value: counts.Charging, color: '#22d3ee' },
+      { name: 'Workshop', value: counts.Workshop, color: '#fb923c' },
+      ...(counts.Other > 0 ? [{ name: 'Other', value: counts.Other, color: '#a78bfa' }] : [])
+    ].filter(s => s.value > 0)
+  }, [vehicleLatestStatus])
+
+  const driverTableData = useMemo(() => {
+    const byDriver = {}
+    vehicleLatestStatus.forEach(v => {
+      const driverId = v.driverRaw || 'Unassigned'
+      if (!byDriver[driverId]) {
+        byDriver[driverId] = {
+          driverRaw: driverId,
+          driverName: v.driver || 'Unassigned',
+          total: 0,
+          running: 0,
+          charging: 0,
+          workshop: 0,
+          vehiclesList: []
+        }
+      }
+      const d = byDriver[driverId]
+      d.total++
+      if (v.status === 'Running') d.running++
+      else if (v.status === 'Charging') d.charging++
+      else if (v.status === 'Workshop') d.workshop++
+      d.vehiclesList.push(v.vehicle)
+    })
+    return Object.values(byDriver).map(d => ({
+      ...d,
+      vehicles: d.vehiclesList.join(', ')
+    }))
+  }, [vehicleLatestStatus])
+
+  const brandStatusData = useMemo(() => {
+    const byBrand = {}
+    vehicleLatestStatus.forEach(v => {
+      const brand = v.brand || 'Other'
+      if (!byBrand[brand]) {
+        byBrand[brand] = {
+          brand,
+          total: 0,
+          running: 0,
+          charging: 0,
+          workshop: 0
+        }
+      }
+      const b = byBrand[brand]
+      b.total++
+      if (v.status === 'Running') b.running++
+      else if (v.status === 'Charging') b.charging++
+      else if (v.status === 'Workshop') b.workshop++
+    })
+    return Object.values(byBrand)
+  }, [vehicleLatestStatus])
 
   // ── RENDER INDIVIDUAL VIEW ──────────────────────────────────────────────────
   if (viewMode === 'individual') {
@@ -265,7 +327,7 @@ export default function VehicleTab() {
         </div>
       </div>
 
-      {viewMode === 'cards' && (
+      {activeView === 'cards' && (
         <div className="analytics-layout">
           <FilterPanel onReset={resetCardFilters}>
             <FilterGroup label="Status">

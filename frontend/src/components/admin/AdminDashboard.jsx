@@ -102,7 +102,7 @@ export default function AdminDashboard({ user, onLogout }) {
           <div className="sidebar-user-card">
             <div className="sidebar-user-avatar"><ShieldAlert size={20} /></div>
             <div>
-              <div className="sidebar-user-name">Admin {user.id}</div>
+              <div className="sidebar-user-name">{user.name || `Admin ${user.id}`}</div>
               <div className="sidebar-user-role">Fleet Manager · 10 vehicles</div>
             </div>
           </div>
