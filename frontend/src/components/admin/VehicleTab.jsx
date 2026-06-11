@@ -12,6 +12,7 @@ import ChartCard from '../shared/ChartCard'
 import DynamicChart from '../shared/DynamicChart'
 import SortableTable from '../shared/SortableTable'
 import FilterPanel, { FilterGroup, FilterChips, FilterToggle, FilterRange, FilterCheckboxGroup } from '../shared/FilterPanel'
+import { Zap, Wrench, GalleryHorizontalEnd, TrafficCone, CarFront, Tags, Circle, Play } from 'lucide-react'
 
 import imgTiagoEV      from '../../assets/cars/tiagoev.png'
 import imgPunchEV      from '../../assets/cars/punchev.png'
@@ -33,9 +34,9 @@ const BRAND_GRADIENTS = {
   'Tata':     'linear-gradient(135deg, #1f2937 0%, #374151 100%)',
 }
 const STATUS_META = {
-  Running:  { color: '#16a34a', bg: '#dcfce7', label: '● Running'  },
-  Charging: { color: '#0891b2', bg: '#cffafe', label: '⚡ Charging' },
-  Workshop: { color: '#ea580c', bg: '#ffedd5', label: '🔧 Workshop' },
+  Running:  { color: '#16a34a', bg: '#dcfce7', label: <><Play size={12} fill="currentColor" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '4px' }} />Running</>  },
+  Charging: { color: '#0891b2', bg: '#cffafe', label: <><Zap size={12} fill="currentColor" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '4px' }} />Charging</> },
+  Workshop: { color: '#ea580c', bg: '#ffedd5', label: <><Wrench size={12} fill="currentColor" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '4px' }} />Workshop</> },
 }
 const fmtK = v => '₹' + fmtNum(v / 1000) + 'k'
 
@@ -211,10 +212,10 @@ export default function VehicleTab() {
         <div className="page-header-right">
           <div className="view-toggle">
             {[
-              { key: 'cards', label: '🃏 Fleet Cards' },
-              { key: 'fleet', label: '🚦 Fleet Status' },
-              { key: 'overview', label: '🚗 Vehicle View' },
-              { key: 'brand', label: '🏷️ Brand View' },
+              { key: 'cards', label: <><GalleryHorizontalEnd size={16} style={{ display: 'inline-block', verticalAlign: '-2px', marginRight: '6px' }} /> Fleet Cards</> },
+              { key: 'fleet', label: <><TrafficCone size={16} style={{ display: 'inline-block', verticalAlign: '-2px', marginRight: '6px' }} /> Fleet Status</> },
+              { key: 'overview', label: <><CarFront size={16} style={{ display: 'inline-block', verticalAlign: '-2px', marginRight: '6px' }} /> Vehicle View</> },
+              { key: 'brand', label: <><Tags size={16} style={{ display: 'inline-block', verticalAlign: '-2px', marginRight: '6px' }} /> Brand View</> },
             ].map(({ key, label }) => (
               <button key={key} className={`view-toggle-btn${activeView === key ? ' active' : ''}`} onClick={() => setActiveView(key)}>
                 {label}
@@ -237,9 +238,9 @@ export default function VehicleTab() {
               <FilterChips
                 options={[
                   { value: 'all', label: `All (${vehicleLatestStatus.length})` },
-                  { value: 'Running', label: '🟢 Running' },
-                  { value: 'Charging', label: '⚡ Charging' },
-                  { value: 'Workshop', label: '🔧 Workshop' },
+                  { value: 'Running', label: <><Play size={14} fill="currentColor" style={{ display: 'inline-block', verticalAlign: '-2px', marginRight: '4px' }} /> Running</> },
+                  { value: 'Charging', label: <><Zap size={14} fill="currentColor" style={{ display: 'inline-block', verticalAlign: '-2px', marginRight: '4px' }} /> Charging</> },
+                  { value: 'Workshop', label: <><Wrench size={14} fill="currentColor" style={{ display: 'inline-block', verticalAlign: '-2px', marginRight: '4px' }} /> Workshop</> },
                 ]}
                 value={cardFilter}
                 onChange={setCardFilter}
@@ -299,7 +300,7 @@ export default function VehicleTab() {
                           style={v.brand === 'Mercedes' ? { objectFit: 'contain', padding: '8px' } : v.model === 'Mahindra XUV400 EV' ? { objectFit: 'contain', padding: '4px' } : undefined}
                           onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling.style.display = 'flex' }} />
                       ) : null}
-                      <div className="fleet-card-img-placeholder" style={{ display: img ? 'none' : 'flex' }}>🚗</div>
+                      <div className="fleet-card-img-placeholder" style={{ display: img ? 'none' : 'flex' }}><CarFront size={32} /></div>
                       <span className="fleet-card-status-badge" style={{ background: sm.bg, color: sm.color }}>{sm.label}</span>
                     </div>
                     <div className="fleet-card-body">
@@ -340,7 +341,7 @@ export default function VehicleTab() {
             <div className="stat-card blue"><span className="label">Total Vehicles</span><span className="value">{vehicleLatestStatus.length}</span></div>
             {fleetStatusCounts.map(s => (
               <div key={s.name} className="stat-card" style={{ borderTop: `4px solid ${s.color}` }}>
-                <span className="label">{s.name === 'Running' ? '🟢 Running' : s.name === 'Charging' ? '🔵 Charging' : s.name === 'Workshop' ? '🟠 Workshop' : s.name}</span>
+                <span className="label">{s.name === 'Running' ? <><Circle fill="#16a34a" color="#16a34a" size={12} style={{ display: 'inline-block', marginRight: '4px' }} /> Running</> : s.name === 'Charging' ? <><Circle fill="#0891b2" color="#0891b2" size={12} style={{ display: 'inline-block', marginRight: '4px' }} /> Charging</> : s.name === 'Workshop' ? <><Circle fill="#ea580c" color="#ea580c" size={12} style={{ display: 'inline-block', marginRight: '4px' }} /> Workshop</> : s.name}</span>
                 <span className="value" style={{ color: s.color }}>{s.value}</span>
               </div>
             ))}
@@ -376,9 +377,9 @@ export default function VehicleTab() {
               columns={[
                 { key: 'driverRaw', label: 'Driver', render: r => <span style={{ fontWeight: 700 }}>{r.driverName} <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400 }}>#{r.driverRaw}</span></span> },
                 { key: 'total', label: 'Total', align: 'right', render: r => <span className="badge badge-blue">{r.total}</span> },
-                { key: 'running', label: '🟢 Running', align: 'right', render: r => <span style={{ color: '#16a34a', fontWeight: 600 }}>{r.running}</span> },
-                { key: 'charging', label: '🔵 Charging', align: 'right', render: r => <span style={{ color: '#0891b2', fontWeight: 600 }}>{r.charging}</span> },
-                { key: 'workshop', label: '🟠 Workshop', align: 'right', render: r => <span style={{ color: '#ea580c', fontWeight: 600 }}>{r.workshop}</span> },
+                { key: 'running', label: <><Circle fill="#16a34a" color="#16a34a" size={12} style={{ display: 'inline-block', verticalAlign: '-1px', marginRight: '4px' }} /> Running</>, align: 'right', render: r => <span style={{ color: '#16a34a', fontWeight: 600 }}>{r.running}</span> },
+                { key: 'charging', label: <><Circle fill="#0891b2" color="#0891b2" size={12} style={{ display: 'inline-block', verticalAlign: '-1px', marginRight: '4px' }} /> Charging</>, align: 'right', render: r => <span style={{ color: '#0891b2', fontWeight: 600 }}>{r.charging}</span> },
+                { key: 'workshop', label: <><Circle fill="#ea580c" color="#ea580c" size={12} style={{ display: 'inline-block', verticalAlign: '-1px', marginRight: '4px' }} /> Workshop</>, align: 'right', render: r => <span style={{ color: '#ea580c', fontWeight: 600 }}>{r.workshop}</span> },
                 { key: 'vehicles', label: 'Vehicle IDs', render: r => <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{r.vehicles}</span> },
               ]}
             />
@@ -395,9 +396,9 @@ export default function VehicleTab() {
               columns={[
                 { key: 'brand', label: 'Brand', render: r => <span style={{ fontWeight: 700 }}>{r.brand}</span> },
                 { key: 'total', label: 'Total', align: 'right', render: r => <span className="badge badge-blue">{r.total}</span> },
-                { key: 'running', label: '🟢 Running', align: 'right', render: r => <span style={{ color: '#16a34a', fontWeight: 600 }}>{r.running}</span> },
-                { key: 'charging', label: '🔵 Charging', align: 'right', render: r => <span style={{ color: '#0891b2', fontWeight: 600 }}>{r.charging}</span> },
-                { key: 'workshop', label: '🟠 Workshop', align: 'right', render: r => <span style={{ color: '#ea580c', fontWeight: 600 }}>{r.workshop}</span> },
+                { key: 'running', label: <><Circle fill="#16a34a" color="#16a34a" size={12} style={{ display: 'inline-block', verticalAlign: '-1px', marginRight: '4px' }} /> Running</>, align: 'right', render: r => <span style={{ color: '#16a34a', fontWeight: 600 }}>{r.running}</span> },
+                { key: 'charging', label: <><Circle fill="#0891b2" color="#0891b2" size={12} style={{ display: 'inline-block', verticalAlign: '-1px', marginRight: '4px' }} /> Charging</>, align: 'right', render: r => <span style={{ color: '#0891b2', fontWeight: 600 }}>{r.charging}</span> },
+                { key: 'workshop', label: <><Circle fill="#ea580c" color="#ea580c" size={12} style={{ display: 'inline-block', verticalAlign: '-1px', marginRight: '4px' }} /> Workshop</>, align: 'right', render: r => <span style={{ color: '#ea580c', fontWeight: 600 }}>{r.workshop}</span> },
               ]}
             />
           </div>
