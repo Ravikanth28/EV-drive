@@ -31,7 +31,6 @@ const fmtK = v => '₹' + fmtNum(v / 1000) + 'k'
 export default function CompanyTab() {
   const data = useContext(DataContext)
 
-  // ── Available months (chronological) ──────────────────────────────────────
   const allMonths = useMemo(() => {
     const keys = [...new Set(data.map(r => getMonthKey(r.Date)).filter(Boolean))].sort()
     return keys
@@ -42,16 +41,14 @@ export default function CompanyTab() {
     return allMonths.map(k => (byMonth[k] || []).length)
   }, [data, allMonths])
 
-  // ── Filter state ──────────────────────────────────────────────────────────
   const [range, setRange] = useState([0, 0])
-  const [profitFilter, setProfitFilter] = useState('all')   // all | profit | loss
+  const [profitFilter, setProfitFilter] = useState('all')
   const [shownCharts, setShownCharts] = useState(ALL_CHART_KEYS)
 
-  // Keep range valid when months load
   const safeRange = useMemo(() => {
     const hi = allMonths.length ? allMonths.length - 1 : 0
     let [lo, h] = range
-    if (h === 0 && range[0] === 0) return [0, hi]      // initial
+    if (h === 0 && range[0] === 0) return [0, hi]
     lo = Math.min(Math.max(0, lo), hi)
     h = Math.min(Math.max(lo, h), hi)
     return [lo, h]
@@ -61,7 +58,6 @@ export default function CompanyTab() {
   const loKey = allMonths[loIdx]
   const hiKey = allMonths[hiIdx]
 
-  // ── Data filtered by selected period ──────────────────────────────────────
   const fdata = useMemo(() => {
     if (!allMonths.length) return data
     return data.filter(r => {
@@ -74,7 +70,6 @@ export default function CompanyTab() {
     ? `${getMonthLabel(loKey + '-01')} – ${getMonthLabel(hiKey + '-01')}`
     : 'All time'
 
-  // ── Aggregations (over filtered data) ─────────────────────────────────────
   const monthlyExpense  = useMemo(() => monthlyAgg(fdata, 'Total_Expense'), [fdata])
   const monthlyRevenue  = useMemo(() => monthlyAgg(fdata, 'Income_Generated'), [fdata])
   const monthlyBreakdown = useMemo(() => monthlyAgg(fdata, null, rows => countWhere(rows, r => r.Breakdown === 'Yes')), [fdata])
@@ -123,7 +118,6 @@ export default function CompanyTab() {
       .sort((a, b) => b.expense - a.expense)
   }, [fdata])
 
-  // ── Summary table rows (with profit filter) ───────────────────────────────
   const summaryRows = useMemo(() => {
     return monthlyProfit
       .filter(r => profitFilter === 'all' || (profitFilter === 'profit' ? r.profit >= 0 : r.profit < 0))
@@ -153,7 +147,6 @@ export default function CompanyTab() {
       </div>
 
       <div className="analytics-layout">
-        {/* ── FILTER PANEL ── */}
         <FilterPanel onReset={resetFilters}>
           <FilterGroup label="Reporting period">
             <FilterRange
@@ -189,9 +182,7 @@ export default function CompanyTab() {
           </FilterGroup>
         </FilterPanel>
 
-        {/* ── CONTENT ── */}
         <div>
-          {/* KPI Cards */}
           <div className="stat-cards" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
             <div className="stat-card green"><span className="label">Total Revenue</span><span className="value" style={{ fontSize: '18px' }}>{fmtCurrency(stats.totalRevenue)}</span></div>
             <div className="stat-card orange"><span className="label">Total Expense</span><span className="value" style={{ fontSize: '18px' }}>{fmtCurrency(stats.totalExpense)}</span></div>
@@ -204,7 +195,6 @@ export default function CompanyTab() {
             <div className="stat-card red"><span className="label">Overspeed Events</span><span className="value">{stats.totalOverspeed}</span></div>
           </div>
 
-          {/* Revenue vs Expense (Composed — preserved original visualization) */}
           {show('revexp') && (
             <ChartCard
               title="Monthly Revenue vs Expense (₹)"
@@ -213,20 +203,19 @@ export default function CompanyTab() {
             >
               <ResponsiveContainer width="100%" height={280}>
                 <ComposedChart data={monthlyProfit} margin={{ top: 10, right: 30, bottom: 20, left: 30 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#eef0f3" vertical={false} />
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#868c98' }} tickLine={false} axisLine={{ stroke: '#e8e9ee' }} label={{ value: 'Month', position: 'insideBottom', offset: -12, fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 10, fill: '#868c98' }} tickLine={false} axisLine={false} tickFormatter={fmtK} />
-                  <Tooltip formatter={(v, name) => [fmtCurrency(v), name]} contentStyle={{ borderRadius: 10, border: '1px solid #e8e9ee', fontSize: 12 }} />
-                  <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: '10px', fontSize: 12 }} />
-                  <Bar dataKey="revenue" name="Revenue (₹)" fill="#16a34a" radius={[5, 5, 0, 0]} />
-                  <Bar dataKey="expense" name="Expense (₹)" fill="#ea580c" radius={[5, 5, 0, 0]} />
-                  <Line type="monotone" dataKey="profit" name="Net Profit (₹)" stroke="#2563eb" strokeWidth={2.5} dot={{ r: 4 }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#8892a6' }} tickLine={false} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} label={{ value: 'Month', position: 'insideBottom', offset: -12, fill: '#8892a6', fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 10, fill: '#8892a6' }} tickLine={false} axisLine={false} tickFormatter={fmtK} />
+                  <Tooltip formatter={(v, name) => [fmtCurrency(v), name]} contentStyle={{ background: 'rgba(13,17,27,0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#e4e7ed', fontSize: 12 }} itemStyle={{ color: '#e4e7ed' }} />
+                  <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: '10px', fontSize: 12, color: '#8892a6' }} />
+                  <Bar dataKey="revenue" name="Revenue (₹)" fill="#34d399" radius={[5, 5, 0, 0]} />
+                  <Bar dataKey="expense" name="Expense (₹)" fill="#fb923c" radius={[5, 5, 0, 0]} />
+                  <Line type="monotone" dataKey="profit" name="Net Profit (₹)" stroke="#6c8cff" strokeWidth={2.5} dot={{ r: 4, fill: '#131a28' }} />
                 </ComposedChart>
               </ResponsiveContainer>
             </ChartCard>
           )}
 
-          {/* Expense + Revenue (dynamic) */}
           {(show('expense') || show('revenue')) && (
             <div className="charts-grid-2">
               {show('expense') && (
@@ -235,7 +224,7 @@ export default function CompanyTab() {
                   sub="Operational costs across the fleet per month"
                   data={monthlyExpense}
                   defaultType="area"
-                  metrics={[{ key: 'value', label: 'Total Expense', color: '#ea580c', format: fmtCurrency }]}
+                  metrics={[{ key: 'value', label: 'Total Expense', color: '#fb923c', format: fmtCurrency }]}
                   yTickFormatter={fmtK}
                 />
               )}
@@ -245,26 +234,24 @@ export default function CompanyTab() {
                   sub="Income generated across the fleet per month"
                   data={monthlyRevenue}
                   defaultType="area"
-                  metrics={[{ key: 'value', label: 'Total Revenue', color: '#16a34a', format: fmtCurrency }]}
+                  metrics={[{ key: 'value', label: 'Total Revenue', color: '#34d399', format: fmtCurrency }]}
                   yTickFormatter={fmtK}
                 />
               )}
             </div>
           )}
 
-          {/* Net profit (dynamic, colored by sign) */}
           {show('profit') && (
             <DynamicChart
               title="Monthly Net Profit / Loss (₹)"
               sub="Net profit = Revenue − Expense. Red indicates a loss month."
               data={monthlyProfit}
               defaultType="bar"
-              metrics={[{ key: 'profit', label: 'Net Profit', color: '#16a34a', format: fmtCurrency, colorFn: r => (r.profit >= 0 ? '#16a34a' : '#dc2626') }]}
+              metrics={[{ key: 'profit', label: 'Net Profit', color: '#34d399', format: fmtCurrency, colorFn: r => (r.profit >= 0 ? '#34d399' : '#f87171') }]}
               yTickFormatter={fmtK}
             />
           )}
 
-          {/* Extra chart: top expense months */}
           {show('topexp') && (
             <div style={{ marginTop: '20px' }}>
               <DynamicChart
@@ -273,13 +260,12 @@ export default function CompanyTab() {
                 data={topExpenseMonths}
                 defaultType="bar"
                 types={['bar', 'line']}
-                metrics={[{ key: 'value', label: 'Expense', color: '#b45309', format: fmtCurrency }]}
+                metrics={[{ key: 'value', label: 'Expense', color: '#fb923c', format: fmtCurrency }]}
                 yTickFormatter={fmtK}
               />
             </div>
           )}
 
-          {/* Breakdown + Workshop (dynamic) */}
           {(show('breakdown') || show('workshop')) && (
             <div className="charts-grid-2" style={{ marginTop: '20px' }}>
               {show('breakdown') && (
@@ -288,7 +274,7 @@ export default function CompanyTab() {
                   sub="Total vehicle breakdowns reported fleet-wide per month"
                   data={monthlyBreakdown}
                   defaultType="bar"
-                  metrics={[{ key: 'value', label: 'Breakdowns', color: '#dc2626', colorFn: r => (r.value > 10 ? '#7f1d1d' : r.value > 5 ? '#dc2626' : '#fca5a5') }]}
+                  metrics={[{ key: 'value', label: 'Breakdowns', color: '#f87171', colorFn: r => (r.value > 10 ? '#ef4444' : r.value > 5 ? '#f87171' : '#fca5a5') }]}
                 />
               )}
               {show('workshop') && (
@@ -297,13 +283,12 @@ export default function CompanyTab() {
                   sub="Total fleet-wide maintenance workshop visits per month"
                   data={monthlyWorkshop}
                   defaultType="bar"
-                  metrics={[{ key: 'value', label: 'Workshop Visits', color: '#7c3aed' }]}
+                  metrics={[{ key: 'value', label: 'Workshop Visits', color: '#a78bfa' }]}
                 />
               )}
             </div>
           )}
 
-          {/* Overspeed (dynamic) */}
           {show('overspeed') && (
             <div style={{ marginTop: '20px' }}>
               <DynamicChart
@@ -311,29 +296,27 @@ export default function CompanyTab() {
                 sub="Total speed-limit violations across all vehicles and drivers per month"
                 data={monthlyOvespeed}
                 defaultType="line"
-                metrics={[{ key: 'value', label: 'Overspeed Events', color: '#dc2626' }]}
+                metrics={[{ key: 'value', label: 'Overspeed Events', color: '#f87171' }]}
               />
             </div>
           )}
 
-          {/* Revenue vs Expense by brand (preserved) */}
           {show('brand') && (
             <ChartCard title="Revenue vs Expense by Brand (₹)" sub="Comparative brand-level revenue and expense" style={{ marginTop: '20px', marginBottom: '20px' }}>
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={expenseByBrand} margin={{ top: 10, right: 30, bottom: 20, left: 30 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#eef0f3" vertical={false} />
-                  <XAxis dataKey="brand" tick={{ fontSize: 11, fill: '#868c98' }} tickLine={false} axisLine={{ stroke: '#e8e9ee' }} />
-                  <YAxis tick={{ fontSize: 10, fill: '#868c98' }} tickLine={false} axisLine={false} tickFormatter={fmtK} />
-                  <Tooltip formatter={(v, name) => [fmtCurrency(v), name]} contentStyle={{ borderRadius: 10, border: '1px solid #e8e9ee', fontSize: 12 }} />
-                  <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: '10px', fontSize: 12 }} />
-                  <Bar dataKey="revenue" name="Revenue (₹)" fill="#16a34a" radius={[5, 5, 0, 0]} />
-                  <Bar dataKey="expense" name="Expense (₹)" fill="#ea580c" radius={[5, 5, 0, 0]} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                  <XAxis dataKey="brand" tick={{ fontSize: 11, fill: '#8892a6' }} tickLine={false} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} />
+                  <YAxis tick={{ fontSize: 10, fill: '#8892a6' }} tickLine={false} axisLine={false} tickFormatter={fmtK} />
+                  <Tooltip formatter={(v, name) => [fmtCurrency(v), name]} contentStyle={{ background: 'rgba(13,17,27,0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#e4e7ed', fontSize: 12 }} itemStyle={{ color: '#e4e7ed' }} />
+                  <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: '10px', fontSize: 12, color: '#8892a6' }} />
+                  <Bar dataKey="revenue" name="Revenue (₹)" fill="#34d399" radius={[5, 5, 0, 0]} />
+                  <Bar dataKey="expense" name="Expense (₹)" fill="#fb923c" radius={[5, 5, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
           )}
 
-          {/* Monthly summary — sortable */}
           <div className="chart-wrapper" style={{ marginTop: '20px', overflowX: 'auto' }}>
             <div className="chart-title">Monthly Financial Summary</div>
             <div className="chart-sub">Month-wise revenue, expense and net profit — click any column to sort ascending / descending</div>
