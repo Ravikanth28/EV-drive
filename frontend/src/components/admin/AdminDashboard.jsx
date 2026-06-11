@@ -61,7 +61,9 @@ export default function AdminDashboard({ user, onLogout }) {
       <aside className="sidebar">
         {/* Logo */}
         <div className="sidebar-logo">
-          <div className="sidebar-logo-icon">⚡</div>
+          <div className="sidebar-logo-icon" style={{ background: 'transparent', padding: 0, boxShadow: 'none' }}>
+            <img src={logoImg} alt="Logo" style={{ width: '40px', height: '40px', objectFit: 'contain', marginLeft: '-8px' }} />
+          </div>
           <div className="sidebar-logo-text">
             <div className="sidebar-logo-title">EV Fleet Admin</div>
             <div className="sidebar-logo-sub">Operations workspace</div>
@@ -99,14 +101,14 @@ export default function AdminDashboard({ user, onLogout }) {
         {/* Footer */}
         <div className="sidebar-footer">
           <div className="sidebar-user-card">
-            <div className="sidebar-user-avatar">🛡️</div>
+            <div className="sidebar-user-avatar"><ShieldAlert size={20} /></div>
             <div>
               <div className="sidebar-user-name">Admin {user.id}</div>
               <div className="sidebar-user-role">Fleet Manager · 10 vehicles</div>
             </div>
           </div>
           <button className="btn-signout" onClick={onLogout}>
-            <span>↩</span> Sign Out
+            <span><LogOut size={16} /></span> Sign Out
           </button>
         </div>
       </aside>
@@ -152,7 +154,7 @@ export default function AdminDashboard({ user, onLogout }) {
               <span className="topbar-pill-dot" />
               Fleet Live
             </div>
-            <div className="topbar-date">📅 {today}</div>
+            <div className="topbar-date"><Calendar size={14} style={{ marginRight: '6px', verticalAlign: '-2px' }} />{today}</div>
           </div>
         </div>
 
