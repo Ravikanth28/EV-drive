@@ -4,18 +4,20 @@ import { fmtCurrency, fmtNum, groupBy, sumBy, uniqueValues } from '../../utils/d
 import DriverTab  from './DriverTab'
 import VehicleTab from './VehicleTab'
 import CompanyTab from './CompanyTab'
+import OverviewTab from './OverviewTab'
 
 const NAV = [
+  { key: 'overview', icon: '🏠', label: 'Dashboard', sub: 'High-level fleet summary' },
   { key: 'driver',  icon: '👤', label: 'Driver Analytics',  sub: 'Per-driver performance & violations' },
   { key: 'vehicle', icon: '🚗', label: 'Vehicle Analytics', sub: 'Fleet health, charging & maintenance'  },
   { key: 'company', icon: '🏢', label: 'Company Overview',  sub: 'Revenue, expenses & profitability'    },
 ]
 
-const ICON_CLASS = { driver: 'driver', vehicle: 'vehicle', company: 'company' }
+const ICON_CLASS = { overview: 'dashboard', driver: 'driver', vehicle: 'vehicle', company: 'company' }
 
 export default function AdminDashboard({ user, onLogout }) {
   const data = useContext(DataContext)
-  const [tab, setTab] = useState('driver')
+  const [tab, setTab] = useState('overview')
   const active = NAV.find(n => n.key === tab)
   const today  = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 
@@ -156,6 +158,7 @@ export default function AdminDashboard({ user, onLogout }) {
 
         {/* Tab body */}
         <div className="dashboard-scroll-area">
+          {tab === 'overview' && <OverviewTab />}
           {tab === 'driver'  && <DriverTab  />}
           {tab === 'vehicle' && <VehicleTab />}
           {tab === 'company' && <CompanyTab />}

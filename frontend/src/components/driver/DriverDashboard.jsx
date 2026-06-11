@@ -1,6 +1,6 @@
-import { useState, useContext, useMemo } from 'react'
+import React, { useState, useContext, useMemo } from 'react'
 import {
-  LineChart, Line, ComposedChart, Bar, PieChart, Pie, Cell,
+  LineChart, Line, ComposedChart, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 import { DataContext } from '../../App'
@@ -11,6 +11,33 @@ import {
 } from '../../utils/dataUtils'
 import DynamicChart from '../shared/DynamicChart'
 import SortableTable from '../shared/SortableTable'
+import ChartCard from '../shared/ChartCard'
+
+class TabErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '40px', color: '#ff8080', background: '#2d1a1a', borderRadius: '8px', margin: '20px' }}>
+          <h2>Something went wrong in this tab.</h2>
+          <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
+            {this.state.error?.toString()}
+          </pre>
+          <pre style={{ marginTop: '10px', fontSize: '12px', opacity: 0.8, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
+            {this.state.error?.stack}
+          </pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const NAV_TABS = [
   { key: 'overview', icon: '📊', label: 'Overview', sub: 'General performance & history' },
@@ -86,7 +113,7 @@ export default function DriverDashboard({ user, onLogout }) {
   }), [dRows])
 
   // ── Recent trips (last 10) ────────────────────────────────────────────────
-  const recentTrips = useMemo(() => sortedReverseChronological.slice(0, 10), [sortedReverseChronological])
+  const recentTrips = useMemo(() => sortedReverseChronological.filter(r => parseFloat(r.Distance_Travelled_km) > 0).slice(0, 10), [sortedReverseChronological])
 
   // ── DISTANCE TAB COMPUTATIONS ─────────────────────────────────────────────
   const maxTripDist = useMemo(() => {
@@ -175,7 +202,7 @@ export default function DriverDashboard({ user, onLogout }) {
   const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <div className="admin-shell">
       {/* ── SIDEBAR ── */}
       <aside className="sidebar">
         {/* Logo */}
@@ -190,17 +217,18 @@ export default function DriverDashboard({ user, onLogout }) {
         {/* Driver Profile Summary */}
         <div style={{ padding: '16px', borderBottom: '1px solid var(--sidebar-border)' }}>
           <div style={{
-            background: 'linear-gradient(135deg, #1e40af, #2563eb)',
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.06))',
+            border: '1px solid var(--glass-border)',
             borderRadius: '10px',
             padding: '12px 14px',
-            boxShadow: '0 4px 12px rgba(37, 99, 235, 0.2)'
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)'
           }}>
-            <div style={{ fontSize: '28px', textAlign: 'center', marginBottom: '6px' }}>🚗</div>
-            <div style={{ color: '#fff', fontWeight: '700', fontSize: '14px', textAlign: 'center' }}>
+            <div style={{ fontSize: '28px', textAlign: 'center', margin: '0 auto 6px', width: '48px', height: '48px', lineHeight: '48px', background: 'rgba(255,255,255,0.05)', borderRadius: '50%' }}>🚗</div>
+            <div style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '14px', textAlign: 'center' }}>
               {driverName(driverId)}
             </div>
-            <div style={{ color: '#bfdbfe', fontSize: '11px', textAlign: 'center' }}>Driver #{driverId}</div>
-            <div style={{ color: '#bfdbfe', fontSize: '11px', textAlign: 'center', marginTop: '2px' }}>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '11px', textAlign: 'center' }}>Driver #{driverId}</div>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '11px', textAlign: 'center', marginTop: '2px' }}>
               Vehicle: {latestRecord.Vehicle_ID || 'EV—'}
             </div>
           </div>
@@ -240,11 +268,11 @@ export default function DriverDashboard({ user, onLogout }) {
       </aside>
 
       {/* ── MAIN CONTENT AREA ── */}
-      <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <main className="dashboard-main">
         {/* Topbar */}
         <div className="topbar">
           <div className="topbar-left">
-            <div className="topbar-icon-wrap" style={{ background: '#dbeafe', color: '#1e40af' }}>
+            <div className="topbar-icon-wrap" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', border: '1px solid var(--glass-border)' }}>
               {activeTabDetails?.icon}
             </div>
             <div>
@@ -262,7 +290,8 @@ export default function DriverDashboard({ user, onLogout }) {
         </div>
 
         {/* Scrollable Content Body */}
-        <div className="tab-content" style={{ flex: 1, overflow: 'auto', padding: '28px' }}>
+        <div className="dashboard-scroll-area">
+          <div className="tab-content">
 
           {tab === 'predict' && (
             <RangePredictionTab user={user} latestRecord={latestRecord} />
@@ -312,23 +341,23 @@ export default function DriverDashboard({ user, onLogout }) {
               <div className="charts-grid-2">
                 <DynamicChart title="Monthly Overspeed Events" sub="Trips where you exceeded the speed limit"
                   data={monthlyOverspeed} defaultType="bar"
-                  metrics={[{ key: 'value', label: 'Overspeed Events', color: '#dc2626', colorFn: r => (r.value > 5 ? '#dc2626' : '#fca5a5') }]} />
+                  metrics={[{ key: 'value', label: 'Overspeed Events', color: '#f87171', colorFn: r => (r.value > 5 ? '#ef4444' : '#fca5a5') }]} />
                 <DynamicChart title="Monthly Distance Travelled (km)" sub="Total distance covered each month across your trips"
                   data={monthlyDist} defaultType="area"
-                  metrics={[{ key: 'value', label: 'Distance (km)', color: '#2563eb', format: v => fmtNum(v, 1) + ' km' }]} />
+                  metrics={[{ key: 'value', label: 'Distance (km)', color: '#6c8cff', format: v => fmtNum(v, 1) + ' km' }]} />
               </div>
 
               {/* Row 2: Income vs Expense */}
               <ChartCard title="Monthly Income vs Expense (₹)" sub="Your revenue generated vs operational costs each month" style={{ marginBottom: '20px' }}>
                 <ResponsiveContainer width="100%" height={260}>
                   <ComposedChart data={monthlyFinance} margin={{ top: 10, right: 30, bottom: 20, left: 30 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 10 }} tickFormatter={v => '₹' + fmtNum(v / 1000) + 'k'} />
-                    <Tooltip formatter={(v, name) => [fmtCurrency(v), name]} />
-                    <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: '8px' }} />
-                    <Bar dataKey="income" name="Income (₹)" fill="#16a34a" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="expense" name="Expense (₹)" fill="#ea580c" radius={[4, 4, 0, 0]} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                    <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#8892a6' }} tickLine={false} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} />
+                    <YAxis tick={{ fontSize: 10, fill: '#8892a6' }} tickLine={false} axisLine={false} tickFormatter={v => '₹' + fmtNum(v / 1000) + 'k'} />
+                    <Tooltip formatter={(v, name) => [fmtCurrency(v), name]} contentStyle={{ background: 'rgba(13,17,27,0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#e4e7ed', fontSize: 12 }} itemStyle={{ color: '#e4e7ed' }} />
+                    <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: '8px', color: '#8892a6' }} />
+                    <Bar dataKey="income" name="Income (₹)" fill="#34d399" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="expense" name="Expense (₹)" fill="#fb923c" radius={[4, 4, 0, 0]} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </ChartCard>
@@ -390,16 +419,16 @@ export default function DriverDashboard({ user, onLogout }) {
               <div className="charts-grid-2">
                 <DynamicChart title="Monthly Distance Profile" sub="Total kilometers logged per calendar month"
                   data={monthlyDist} height={260} defaultType="area"
-                  metrics={[{ key: 'value', label: 'Distance (km)', color: '#0891b2', format: v => fmtNum(v, 1) + ' km' }]} />
+                  metrics={[{ key: 'value', label: 'Distance (km)', color: '#22d3ee', format: v => fmtNum(v, 1) + ' km' }]} />
 
                 <ChartCard title="Trip-by-Trip Distance Progress" sub="Distance logged in each of the last 15 active runs">
                   <ResponsiveContainer width="100%" height={260}>
                     <LineChart data={tripDistanceHistory} margin={{ top: 5, right: 20, bottom: 20, left: 10 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                      <XAxis dataKey="tripIndex" tick={{ fontSize: 10 }} />
-                      <YAxis label={{ value: 'km', angle: -90, position: 'insideLeft', fontSize: 11 }} />
-                      <Tooltip formatter={(v, name, props) => [v + ' km', `${props.payload.date}`]} />
-                      <Line type="monotone" dataKey="distance" stroke="#2563eb" strokeWidth={2} activeDot={{ r: 6 }} dot={{ r: 4 }} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                      <XAxis dataKey="tripIndex" tick={{ fontSize: 10, fill: '#8892a6' }} tickLine={false} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} />
+                      <YAxis label={{ value: 'km', angle: -90, position: 'insideLeft', fontSize: 11, fill: '#8892a6' }} tick={{ fontSize: 10, fill: '#8892a6' }} tickLine={false} axisLine={false} />
+                      <Tooltip formatter={(v, name, props) => [v + ' km', `${props.payload.date}`]} contentStyle={{ background: 'rgba(13,17,27,0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#e4e7ed', fontSize: 12 }} itemStyle={{ color: '#e4e7ed' }} />
+                      <Line type="monotone" dataKey="distance" stroke="#6c8cff" strokeWidth={2} activeDot={{ r: 6 }} dot={{ r: 4, fill: '#131a28' }} />
                     </LineChart>
                   </ResponsiveContainer>
                 </ChartCard>
@@ -429,7 +458,7 @@ export default function DriverDashboard({ user, onLogout }) {
 
           {/* ════════════════ BATTERY & CHARGE TAB ════════════════ */}
           {tab === 'battery' && (
-            <>
+            <TabErrorBoundary>
               {/* KPI Cards */}
               <div className="stat-cards">
                 <div className="stat-card green">
@@ -477,16 +506,17 @@ export default function DriverDashboard({ user, onLogout }) {
                 <ChartCard title="Battery SoC saw-tooth (Last 25 logs)" sub="Saw-tooth pattern showing battery draining and charging events chronologically">
                   <ResponsiveContainer width="100%" height={260}>
                     <LineChart data={batteryHistory} margin={{ top: 5, right: 20, bottom: 20, left: 10 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                      <XAxis dataKey="timeLabel" tick={{ fontSize: 9 }} />
-                      <YAxis domain={[0, 100]} label={{ value: 'SoC %', angle: -90, position: 'insideLeft', fontSize: 11 }} />
-                      <Tooltip formatter={(v, name, props) => [`${v}% (${props.payload.status})`, 'SoC']} />
-                      <Line type="monotone" dataKey="battery" stroke="#16a34a" strokeWidth={2.5} dot={(props) => {
-                        const { cx, cy, payload } = props
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                      <XAxis dataKey="timeLabel" tick={{ fontSize: 9, fill: '#8892a6' }} tickLine={false} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} />
+                      <YAxis domain={[0, 100]} label={{ value: 'SoC %', angle: -90, position: 'insideLeft', fontSize: 11, fill: '#8892a6' }} tick={{ fontSize: 10, fill: '#8892a6' }} tickLine={false} axisLine={false} />
+                      <Tooltip formatter={(v, name, props) => [`${v}% (${props?.payload?.status || 'Unknown'})`, 'SoC']} contentStyle={{ background: 'rgba(13,17,27,0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#e4e7ed', fontSize: 12 }} itemStyle={{ color: '#e4e7ed' }} />
+                      <Line type="monotone" dataKey="battery" stroke="#34d399" strokeWidth={2.5} dot={(props) => {
+                        const { cx, cy, payload, index } = props
+                        if (typeof cx !== 'number' || typeof cy !== 'number' || !payload) return null
                         if (payload.status === 'Charging') {
-                          return <circle key={cx} cx={cx} cy={cy} r={5} fill="#2563eb" stroke="#fff" strokeWidth={1} />
+                          return <circle key={`dot-${index}`} cx={cx} cy={cy} r={5} fill="#6c8cff" stroke="rgba(255,255,255,0.2)" strokeWidth={1} />
                         }
-                        return <circle key={cx} cx={cx} cy={cy} r={3} fill="#16a34a" />
+                        return <circle key={`dot-${index}`} cx={cx} cy={cy} r={3} fill="#34d399" />
                       }} />
                     </LineChart>
                   </ResponsiveContainer>
@@ -495,11 +525,11 @@ export default function DriverDashboard({ user, onLogout }) {
                 <ChartCard title="Energy Consumed (kWh) per Month" sub="Monthly energy pulled from battery pack for driving">
                   <ResponsiveContainer width="100%" height={260}>
                     <BarChart data={monthlyEnergy} margin={{ top: 5, right: 20, bottom: 20, left: 10 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                      <XAxis dataKey="month" />
-                      <YAxis label={{ value: 'kWh', angle: -90, position: 'insideLeft', fontSize: 11 }} />
-                      <Tooltip formatter={v => [v + ' kWh', 'Energy Consumed']} />
-                      <Bar dataKey="value" name="Energy Consumed" fill="#ea580c" radius={[4, 4, 0, 0]} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                      <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#8892a6' }} tickLine={false} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} />
+                      <YAxis label={{ value: 'kWh', angle: -90, position: 'insideLeft', fontSize: 11, fill: '#8892a6' }} tick={{ fontSize: 10, fill: '#8892a6' }} tickLine={false} axisLine={false} />
+                      <Tooltip formatter={v => [v + ' kWh', 'Energy Consumed']} contentStyle={{ background: 'rgba(13,17,27,0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#e4e7ed', fontSize: 12 }} itemStyle={{ color: '#e4e7ed' }} />
+                      <Bar dataKey="value" name="Energy Consumed" fill="#fb923c" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </ChartCard>
@@ -538,7 +568,7 @@ export default function DriverDashboard({ user, onLogout }) {
                   </tbody>
                 </table>
               </div>
-            </>
+            </TabErrorBoundary>
           )}
 
           {/* ════════════════ VEHICLE SPECS TAB ════════════════ */}
@@ -601,10 +631,10 @@ export default function DriverDashboard({ user, onLogout }) {
                     <div style={{
                       width: '140px', height: '140px',
                       borderRadius: '50%',
-                      background: `conic-gradient(#16a34a ${latestHealth}%, #e2e8f0 0)`,
+                      background: `conic-gradient(#34d399 ${latestHealth}%, rgba(255,255,255,0.05) 0)`,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       position: 'relative',
-                      boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.05)'
+                      boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.2)'
                     }}>
                       <div style={{
                         width: '116px', height: '116px',
@@ -697,8 +727,8 @@ export default function DriverDashboard({ user, onLogout }) {
                             <Cell key={idx} fill={entry.color} />
                           ))}
                         </Pie>
-                        <Tooltip formatter={v => [v + ' km', 'Distance']} />
-                        <Legend />
+                        <Tooltip formatter={v => [v + ' km', 'Distance']} contentStyle={{ background: 'rgba(13,17,27,0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#e4e7ed', fontSize: 12 }} itemStyle={{ color: '#e4e7ed' }} />
+                        <Legend wrapperStyle={{ color: '#8892a6' }} />
                       </PieChart>
                     </ResponsiveContainer>
                   ) : (
@@ -709,13 +739,13 @@ export default function DriverDashboard({ user, onLogout }) {
                 <ChartCard title="Energy Efficiency (Wh/km)" sub="Average energy consumed in Wh per kilometer (lower is more efficient)">
                   <ResponsiveContainer width="100%" height={260}>
                     <BarChart data={roadAnalytics} margin={{ top: 10, right: 20, bottom: 5, left: 10 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                      <XAxis dataKey="type" />
-                      <YAxis label={{ value: 'Wh / km', angle: -90, position: 'insideLeft', fontSize: 11 }} />
-                      <Tooltip formatter={v => [Number(v).toFixed(0) + ' Wh/km', 'Energy Rate']} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                      <XAxis dataKey="type" tick={{ fontSize: 11, fill: '#8892a6' }} tickLine={false} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} />
+                      <YAxis label={{ value: 'Wh / km', angle: -90, position: 'insideLeft', fontSize: 11, fill: '#8892a6' }} tick={{ fontSize: 10, fill: '#8892a6' }} tickLine={false} axisLine={false} />
+                      <Tooltip formatter={v => [Number(v).toFixed(0) + ' Wh/km', 'Energy Rate']} contentStyle={{ background: 'rgba(13,17,27,0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#e4e7ed', fontSize: 12 }} itemStyle={{ color: '#e4e7ed' }} />
                       <Bar dataKey="efficiency" name="Efficiency (Wh/km)" radius={[4, 4, 0, 0]}>
                         {roadAnalytics.map((entry, idx) => (
-                          <Cell key={idx} fill={entry.type === 'City' ? '#16a34a' : entry.type === 'Highway' ? '#2563eb' : '#ea580c'} />
+                          <Cell key={idx} fill={entry.type === 'City' ? '#34d399' : entry.type === 'Highway' ? '#6c8cff' : '#fb923c'} />
                         ))}
                       </Bar>
                     </BarChart>
@@ -759,17 +789,8 @@ export default function DriverDashboard({ user, onLogout }) {
           )}
 
         </div>
+        </div>
       </main>
-    </div>
-  )
-}
-
-function ChartCard({ title, sub, children, style }) {
-  return (
-    <div className="chart-wrapper" style={{ ...style }}>
-      <div className="chart-title">{title}</div>
-      {sub && <div className="chart-sub">{sub}</div>}
-      {children}
     </div>
   )
 }

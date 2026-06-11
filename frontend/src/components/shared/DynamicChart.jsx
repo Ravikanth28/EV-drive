@@ -128,10 +128,10 @@ export default function DynamicChart({
               ))}
             </defs>
           )}
-          <CartesianGrid strokeDasharray="3 3" stroke="#eef0f3" vertical={false} />
-          <XAxis dataKey={xKey} tick={{ fontSize: 11, fill: '#868c98' }} tickLine={false} axisLine={{ stroke: '#e8e9ee' }} {...xTickProps} />
-          <YAxis tick={{ fontSize: 11, fill: '#868c98' }} tickLine={false} axisLine={false} tickFormatter={yTickFormatter} />
-          <Tooltip formatter={fmtTip} contentStyle={{ borderRadius: 10, border: '1px solid #e8e9ee', boxShadow: '0 6px 16px rgba(20,22,28,0.10)', fontSize: 12 }} />
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+          <XAxis dataKey={xKey} tick={{ fontSize: 11, fill: '#8892a6' }} tickLine={false} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} {...xTickProps} />
+          <YAxis tick={{ fontSize: 11, fill: '#8892a6' }} tickLine={false} axisLine={false} tickFormatter={yTickFormatter} />
+          <Tooltip formatter={fmtTip} contentStyle={{ background: 'rgba(13,17,27,0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#e4e7ed', fontSize: 12 }} itemStyle={{ color: '#e4e7ed' }} />
           {series.length > 1 && <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: 10, fontSize: 12 }} />}
           {renderSeries()}
         </ChartEl>

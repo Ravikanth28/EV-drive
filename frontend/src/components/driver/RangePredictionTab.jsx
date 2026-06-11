@@ -174,9 +174,9 @@ function OdometerGauge({ value, maxValue, label }) {
           >
             <defs>
               <linearGradient id="odometerFill" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#22c55e" />
-                <stop offset="45%" stopColor="#16a34a" />
-                <stop offset="100%" stopColor="#2563eb" />
+                <stop offset="0%" stopColor="#34d399" />
+                <stop offset="45%" stopColor="#22d3ee" />
+                <stop offset="100%" stopColor="#6c8cff" />
               </linearGradient>
             </defs>
             <PolarAngleAxis
@@ -188,13 +188,15 @@ function OdometerGauge({ value, maxValue, label }) {
             <RadialBar
               dataKey="value"
               cornerRadius={24}
-              background={{ fill: '#e5eef8' }}
+              background={{ fill: 'rgba(255,255,255,0.05)' }}
               stroke="none"
               isAnimationActive
             />
             <Tooltip
               formatter={v => [`${fmtNum(v, 1)} km`, 'Remaining range']}
               cursor={{ fill: 'rgba(37,99,235,0.04)' }}
+              contentStyle={{ background: 'rgba(13,17,27,0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#e4e7ed', fontSize: 12 }}
+              itemStyle={{ color: '#e4e7ed' }}
             />
           </RadialBarChart>
         </ResponsiveContainer>

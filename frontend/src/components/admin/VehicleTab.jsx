@@ -28,22 +28,23 @@ const CAR_IMAGES = {
   'Mercedes EQS': imgEQS, 'Mercedes EQS SUV': imgEQSSUV,
 }
 const BRAND_GRADIENTS = {
-  'Mahindra': 'linear-gradient(135deg, #ffffff 0%, #ffffff 100%)',
-  'Mercedes': 'linear-gradient(135deg, #ffffff 0%, #ffffff 100%)',
-  'Tata':     'linear-gradient(135deg, #1f2937 0%, #374151 100%)',
+  'Mahindra': 'linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%)',
+  'Mercedes': 'linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%)',
+  'Tata':     'linear-gradient(135deg, rgba(31,41,55,0.5) 0%, rgba(55,65,81,0.5) 100%)',
 }
 const STATUS_META = {
-  Running:  { color: '#16a34a', bg: '#dcfce7', label: '● Running'  },
-  Charging: { color: '#0891b2', bg: '#cffafe', label: '⚡ Charging' },
-  Workshop: { color: '#ea580c', bg: '#ffedd5', label: '🔧 Workshop' },
+  Running:  { color: '#34d399', bg: 'rgba(52,211,153,0.15)', label: '● Running'  },
+  Charging: { color: '#22d3ee', bg: 'rgba(34,211,238,0.15)', label: '⚡ Charging' },
+  Workshop: { color: '#fb923c', bg: 'rgba(251,146,60,0.15)', label: '🔧 Workshop' },
 }
 const fmtK = v => '₹' + fmtNum(v / 1000) + 'k'
 
 export default function VehicleTab() {
   const data = useContext(DataContext)
   const vehicleIds = useMemo(() => uniqueValues(data, 'Vehicle_ID'), [data])
+  
+  const [viewMode, setViewMode] = useState('cards') // 'cards' | 'brand' | 'individual'
   const [selectedVehicle, setVehicle] = useState(vehicleIds[0] ?? '')
-  const [activeView, setActiveView] = useState('cards')
 
   // Fleet card filters
   const [cardFilter, setCardFilter] = useState('all')
@@ -79,20 +80,6 @@ export default function VehicleTab() {
     })
   }, [data])
 
-  const fleetStatusCounts = useMemo(() => {
-    const counts = { Running: 0, Charging: 0, Workshop: 0, Other: 0 }
-    vehicleLatestStatus.forEach(v => {
-      if (counts[v.status] !== undefined) counts[v.status]++
-      else counts.Other++
-    })
-    return [
-      { name: 'Running',  value: counts.Running,  color: '#16a34a' },
-      { name: 'Charging', value: counts.Charging, color: '#0891b2' },
-      { name: 'Workshop', value: counts.Workshop, color: '#ea580c' },
-      ...(counts.Other > 0 ? [{ name: 'Other', value: counts.Other, color: '#94a3b8' }] : []),
-    ].filter(s => s.value > 0)
-  }, [vehicleLatestStatus])
-
   const allBrands = useMemo(() =>
     ['all', ...Array.from(new Set(vehicleLatestStatus.map(v => v.brand))).sort()],
     [vehicleLatestStatus])
@@ -127,30 +114,10 @@ export default function VehicleTab() {
     setBatteryRange([0, 100]); setChargedOnly(false); setCardSearch('')
   }
 
-  // ── Status tables ──────────────────────────────────────────────────────────
-  const driverTableData = useMemo(() => {
-    const byDriver = groupBy(vehicleLatestStatus, v => v.driverRaw)
-    return Object.entries(byDriver).map(([did, vehicles]) => ({
-      driverRaw: Number(did) || did,
-      driverName: driverName(did),
-      total: vehicles.length,
-      running: vehicles.filter(v => v.status === 'Running').length,
-      charging: vehicles.filter(v => v.status === 'Charging').length,
-      workshop: vehicles.filter(v => v.status === 'Workshop').length,
-      vehicles: vehicles.map(v => v.vehicle).join(', '),
-    }))
-  }, [vehicleLatestStatus])
-
-  const brandStatusData = useMemo(() => {
-    const byBrand = groupBy(vehicleLatestStatus, v => v.brand)
-    return Object.entries(byBrand).map(([brand, vehicles]) => ({
-      brand,
-      total: vehicles.length,
-      running: vehicles.filter(v => v.status === 'Running').length,
-      charging: vehicles.filter(v => v.status === 'Charging').length,
-      workshop: vehicles.filter(v => v.status === 'Workshop').length,
-    }))
-  }, [vehicleLatestStatus])
+  function handleVehicleSelect(vid) {
+    setVehicle(vid)
+    setViewMode('individual')
+  }
 
   // ── Selected-vehicle (last 3 months) ───────────────────────────────────────
   const vRows = useMemo(() => {
@@ -169,6 +136,18 @@ export default function VehicleTab() {
   const monthlyWorkshop   = useMemo(() => monthlyAgg(vRows, null, rows => countWhere(rows, r => r.Workshop_Visit === 'Yes')), [vRows])
   const monthlyExp        = useMemo(() => monthlyAgg(vRows, 'Total_Expense'), [vRows])
 
+  const stats = useMemo(() => ({
+    totalTrips: vRows.length,
+    totalKm: sumBy(vRows, 'Distance_Travelled_km'),
+    chargingSessions: countWhere(vRows, r => r.Charging_Status === 'Yes'),
+    workshopVisits: countWhere(vRows, r => r.Workshop_Visit === 'Yes'),
+    breakdowns: countWhere(vRows, r => r.Breakdown === 'Yes'),
+    totalExpense: sumBy(vRows, 'Total_Expense'),
+    overspeedPct: vRows.length ? (countWhere(vRows, r => r.Overspeed === 'Yes') / vRows.length * 100) : 0,
+    avgPassengers: avgBy(vRows, 'Passenger_Count'),
+  }), [vRows])
+
+  // ── Brand Stats ─────────────────────────────────────────────────────────────
   const brandStats = useMemo(() => {
     const byBrand = groupBy(data, 'Brand')
     return Object.entries(byBrand).map(([brand, rows]) => ({
@@ -190,47 +169,98 @@ export default function VehicleTab() {
     })).sort((a, b) => b.overspeedTrips - a.overspeedTrips).slice(0, 15)
   }, [data])
 
-  const stats = useMemo(() => ({
-    totalTrips: vRows.length,
-    totalKm: sumBy(vRows, 'Distance_Travelled_km'),
-    chargingSessions: countWhere(vRows, r => r.Charging_Status === 'Yes'),
-    workshopVisits: countWhere(vRows, r => r.Workshop_Visit === 'Yes'),
-    breakdowns: countWhere(vRows, r => r.Breakdown === 'Yes'),
-    totalExpense: sumBy(vRows, 'Total_Expense'),
-    overspeedPct: vRows.length ? (countWhere(vRows, r => r.Overspeed === 'Yes') / vRows.length * 100) : 0,
-    avgPassengers: avgBy(vRows, 'Passenger_Count'),
-  }), [vRows])
 
+  // ── RENDER INDIVIDUAL VIEW ──────────────────────────────────────────────────
+  if (viewMode === 'individual') {
+    return (
+      <div className="tab-content">
+        <button className="back-btn" onClick={() => setViewMode('cards')}>
+          ← Back to Fleet
+        </button>
+
+        <div className="page-header" style={{ marginTop: '16px' }}>
+          <div className="page-header-left">
+            <p className="section-title">Vehicle Analytics</p>
+            <p className="section-sub">Detailed breakdown for <strong>{selectedVehicle}</strong></p>
+          </div>
+        </div>
+
+        <div className="vehicle-banner">
+          {[
+            { label: 'Vehicle', val: vInfo.Vehicle_ID },
+            { label: 'Brand', val: vInfo.Brand },
+            { label: 'Model', val: vInfo.Vehicle_Model },
+            { label: 'Category', val: vInfo.Category },
+            { label: 'Max Range', val: vInfo.Max_Range_km ? vInfo.Max_Range_km + ' km' : '—' },
+            { label: 'Battery', val: vInfo.Battery_Capacity_kWh ? vInfo.Battery_Capacity_kWh + ' kWh' : '—' },
+          ].map(({ label, val }) => (
+            <div className="vehicle-banner-item" key={label}>
+              <div className="vehicle-banner-label">{label}</div>
+              <div className="vehicle-banner-value">{val || '—'}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="stat-cards">
+          <div className="stat-card blue"><span className="label">Total Trips</span><span className="value">{fmtNum(stats.totalTrips)}</span></div>
+          <div className="stat-card cyan"><span className="label">Total Distance</span><span className="value">{fmtNum(stats.totalKm, 0)} km</span></div>
+          <div className="stat-card green"><span className="label">Charging Sessions</span><span className="value">{stats.chargingSessions}</span></div>
+          <div className="stat-card purple"><span className="label">Workshop Visits</span><span className="value">{stats.workshopVisits}</span></div>
+          <div className="stat-card orange"><span className="label">Total Expense</span><span className="value">{fmtCurrency(stats.totalExpense)}</span></div>
+          <div className="stat-card red"><span className="label">Overspeed %</span><span className="value">{stats.overspeedPct.toFixed(1)}%</span></div>
+          <div className="stat-card blue"><span className="label">Breakdowns</span><span className="value">{stats.breakdowns}</span></div>
+          <div className="stat-card cyan"><span className="label">Avg Passengers</span><span className="value">{stats.avgPassengers.toFixed(1)}</span></div>
+        </div>
+
+        <div className="charts-grid-2">
+          <DynamicChart title="Monthly Charging Sessions" sub="Times the vehicle was charged per month"
+            data={monthlyCharging} height={230} defaultType="bar"
+            metrics={[{ key: 'value', label: 'Charging Sessions', color: '#34d399' }]} />
+          <DynamicChart title="Monthly Avg Passengers" sub="Average passengers per trip per month"
+            data={monthlyPassengers} height={230} defaultType="line"
+            metrics={[{ key: 'value', label: 'Avg Passengers', color: '#22d3ee', format: v => Number(v).toFixed(1) }]} />
+        </div>
+
+        <div className="charts-grid-2">
+          <DynamicChart title="Monthly Workshop Visits" sub="Maintenance/workshop visits per month"
+            data={monthlyWorkshop} height={230} defaultType="bar"
+            metrics={[{ key: 'value', label: 'Workshop Visits', color: '#a78bfa' }]} />
+          <DynamicChart title="Monthly Total Expense (₹)" sub="Operational costs per month"
+            data={monthlyExp} height={230} defaultType="bar"
+            metrics={[{ key: 'value', label: 'Expense', color: '#fb923c', format: fmtCurrency }]} yTickFormatter={fmtK} />
+        </div>
+
+        <div style={{ marginTop: '20px' }}>
+          <DynamicChart title="Overspeed Events — Top 15 Vehicles" sub="Vehicles with the most speed-limit violations"
+            data={carsByOverspeedCount} xKey="vehicle" height={260} defaultType="bar" types={['bar', 'line']}
+            xTickProps={{ angle: -35, textAnchor: 'end', interval: 0, height: 50 }}
+            metrics={[{ key: 'overspeedTrips', label: 'Overspeed Trips', color: '#f87171', colorFn: (r) => (r.overspeedTrips >= 8 ? '#ef4444' : '#f87171') }]} />
+        </div>
+      </div>
+    )
+  }
+
+  // ── RENDER FLEET CARDS / BRAND VIEW ──────────────────────────────────────────
   return (
     <div className="tab-content">
       <div className="page-header">
         <div className="page-header-left">
-          <p className="section-title">Vehicle Analytics</p>
-          <p className="section-sub">Fleet health, charging, maintenance &amp; expenses</p>
+          <p className="section-title">Fleet Operations</p>
+          <p className="section-sub">Fleet health, charging, maintenance &amp; brand metrics</p>
         </div>
         <div className="page-header-right">
           <div className="view-toggle">
-            {[
-              { key: 'cards', label: '🃏 Fleet Cards' },
-              { key: 'fleet', label: '🚦 Fleet Status' },
-              { key: 'overview', label: '🚗 Vehicle View' },
-              { key: 'brand', label: '🏷️ Brand View' },
-            ].map(({ key, label }) => (
-              <button key={key} className={`view-toggle-btn${activeView === key ? ' active' : ''}`} onClick={() => setActiveView(key)}>
-                {label}
-              </button>
-            ))}
+            <button className={`view-toggle-btn${viewMode === 'cards' ? ' active' : ''}`} onClick={() => setViewMode('cards')}>
+              🃏 Fleet Cards
+            </button>
+            <button className={`view-toggle-btn${viewMode === 'brand' ? ' active' : ''}`} onClick={() => setViewMode('brand')}>
+              🏷️ Brand Metrics
+            </button>
           </div>
-          {activeView === 'overview' && (
-            <select className="select" value={selectedVehicle} onChange={e => setVehicle(e.target.value)}>
-              {vehicleIds.map(v => <option key={v} value={v}>{v}</option>)}
-            </select>
-          )}
         </div>
       </div>
 
-      {/* ── FLEET CARDS VIEW (reference-style filter rail + grid) ── */}
-      {activeView === 'cards' && (
+      {viewMode === 'cards' && (
         <div className="analytics-layout">
           <FilterPanel onReset={resetCardFilters}>
             <FilterGroup label="Status">
@@ -283,20 +313,21 @@ export default function VehicleTab() {
           <div>
             <div className="table-toolbar">
               <span className="table-count">{filteredFleetCards.length} of {vehicleLatestStatus.length} vehicles</span>
+              <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Click on any vehicle card to view detailed analytics</span>
             </div>
             <div className="fleet-cards-grid">
               {filteredFleetCards.map(v => {
                 const img = CAR_IMAGES[v.model]
-                const gradient = BRAND_GRADIENTS[v.brand] || 'linear-gradient(135deg, #1f2937 0%, #4b5563 100%)'
-                const sm = STATUS_META[v.status] || { color: '#94a3b8', bg: '#f1f5f9', label: v.status }
+                const gradient = BRAND_GRADIENTS[v.brand] || 'linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)'
+                const sm = STATUS_META[v.status] || { color: '#8892a6', bg: 'rgba(255,255,255,0.08)', label: v.status }
                 const batPct = v.battery ?? 0
-                const batColor = batPct >= 60 ? '#16a34a' : batPct >= 30 ? '#f59e0b' : '#dc2626'
+                const batColor = batPct >= 60 ? '#34d399' : batPct >= 30 ? '#fb923c' : '#f87171'
                 return (
-                  <div key={v.vehicle} className="fleet-card">
+                  <div key={v.vehicle} className="fleet-card" onClick={() => handleVehicleSelect(v.vehicle)}>
                     <div className="fleet-card-img-wrap" style={{ background: gradient }}>
                       {img ? (
                         <img src={img} alt={v.model} className="fleet-card-img" loading="lazy"
-                          style={v.brand === 'Mercedes' ? { objectFit: 'contain', padding: '8px' } : v.model === 'Mahindra XUV400 EV' ? { objectFit: 'contain', padding: '4px' } : undefined}
+                          style={v.brand === 'Mercedes' ? { objectFit: 'contain', padding: '8px', filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.5))' } : v.model === 'Mahindra XUV400 EV' ? { objectFit: 'contain', padding: '4px', filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.5))' } : { filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.5))' }}
                           onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling.style.display = 'flex' }} />
                       ) : null}
                       <div className="fleet-card-img-placeholder" style={{ display: img ? 'none' : 'flex' }}>🚗</div>
@@ -318,7 +349,7 @@ export default function VehicleTab() {
                       </div>
                       {v.remainingRange != null && (
                         <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
-                          <span style={{ color: '#0891b2', fontWeight: 600 }}>{v.remainingRange} km</span> remaining range
+                          <span style={{ color: '#22d3ee', fontWeight: 600 }}>{v.remainingRange} km</span> remaining range
                         </div>
                       )}
                     </div>
@@ -333,154 +364,25 @@ export default function VehicleTab() {
         </div>
       )}
 
-      {/* ── FLEET STATUS VIEW ── */}
-      {activeView === 'fleet' && (
-        <>
-          <div className="stat-cards">
-            <div className="stat-card blue"><span className="label">Total Vehicles</span><span className="value">{vehicleLatestStatus.length}</span></div>
-            {fleetStatusCounts.map(s => (
-              <div key={s.name} className="stat-card" style={{ borderTop: `4px solid ${s.color}` }}>
-                <span className="label">{s.name === 'Running' ? '🟢 Running' : s.name === 'Charging' ? '🔵 Charging' : s.name === 'Workshop' ? '🟠 Workshop' : s.name}</span>
-                <span className="value" style={{ color: s.color }}>{s.value}</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="charts-grid-2">
-            <ChartCard title="Fleet Status Distribution" sub="Current status of each vehicle in the fleet">
-              <ResponsiveContainer width="100%" height={260}>
-                <PieChart>
-                  <Pie data={fleetStatusCounts} cx="50%" cy="50%" innerRadius={70} outerRadius={110} paddingAngle={3} dataKey="value"
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                    {fleetStatusCounts.map((s, i) => <Cell key={i} fill={s.color} />)}
-                  </Pie>
-                  <Tooltip formatter={(v, name) => [v + ' vehicles', name]} contentStyle={{ borderRadius: 10, border: '1px solid #e8e9ee', fontSize: 12 }} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </ChartCard>
-
-            <DynamicChart title="Vehicle Count by Status" sub="Running / charging / workshop counts"
-              data={fleetStatusCounts} xKey="name" defaultType="bar" types={['bar', 'line', 'area']}
-              metrics={[{ key: 'value', label: 'Vehicles', color: '#2563eb', colorFn: r => r.color, format: v => v + ' vehicles' }]} />
-          </div>
-
-          {/* Driver-wise table */}
-          <div className="chart-wrapper" style={{ marginTop: '20px', overflowX: 'auto' }}>
-            <div className="chart-title">Vehicle Status — Driver Wise</div>
-            <div className="chart-sub">Current fleet allocation per driver — click any column to sort</div>
-            <SortableTable
-              rows={driverTableData}
-              rowKey={r => r.driverRaw}
-              initialSort={{ key: 'driverRaw', dir: 'asc' }}
-              columns={[
-                { key: 'driverRaw', label: 'Driver', render: r => <span style={{ fontWeight: 700 }}>{r.driverName} <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400 }}>#{r.driverRaw}</span></span> },
-                { key: 'total', label: 'Total', align: 'right', render: r => <span className="badge badge-blue">{r.total}</span> },
-                { key: 'running', label: '🟢 Running', align: 'right', render: r => <span style={{ color: '#16a34a', fontWeight: 600 }}>{r.running}</span> },
-                { key: 'charging', label: '🔵 Charging', align: 'right', render: r => <span style={{ color: '#0891b2', fontWeight: 600 }}>{r.charging}</span> },
-                { key: 'workshop', label: '🟠 Workshop', align: 'right', render: r => <span style={{ color: '#ea580c', fontWeight: 600 }}>{r.workshop}</span> },
-                { key: 'vehicles', label: 'Vehicle IDs', render: r => <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{r.vehicles}</span> },
-              ]}
-            />
-          </div>
-
-          {/* Brand-wise table */}
-          <div className="chart-wrapper" style={{ marginTop: '20px', overflowX: 'auto' }}>
-            <div className="chart-title">Vehicle Status — Brand Wise</div>
-            <div className="chart-sub">Fleet status grouped by manufacturer — click any column to sort</div>
-            <SortableTable
-              rows={brandStatusData}
-              rowKey={r => r.brand}
-              initialSort={{ key: 'brand', dir: 'asc' }}
-              columns={[
-                { key: 'brand', label: 'Brand', render: r => <span style={{ fontWeight: 700 }}>{r.brand}</span> },
-                { key: 'total', label: 'Total', align: 'right', render: r => <span className="badge badge-blue">{r.total}</span> },
-                { key: 'running', label: '🟢 Running', align: 'right', render: r => <span style={{ color: '#16a34a', fontWeight: 600 }}>{r.running}</span> },
-                { key: 'charging', label: '🔵 Charging', align: 'right', render: r => <span style={{ color: '#0891b2', fontWeight: 600 }}>{r.charging}</span> },
-                { key: 'workshop', label: '🟠 Workshop', align: 'right', render: r => <span style={{ color: '#ea580c', fontWeight: 600 }}>{r.workshop}</span> },
-              ]}
-            />
-          </div>
-        </>
-      )}
-
-      {/* ── OVERVIEW VIEW ── */}
-      {activeView === 'overview' && (
-        <>
-          <div className="vehicle-banner">
-            {[
-              { label: 'Vehicle', val: vInfo.Vehicle_ID },
-              { label: 'Brand', val: vInfo.Brand },
-              { label: 'Model', val: vInfo.Vehicle_Model },
-              { label: 'Category', val: vInfo.Category },
-              { label: 'Max Range', val: vInfo.Max_Range_km ? vInfo.Max_Range_km + ' km' : '—' },
-              { label: 'Battery', val: vInfo.Battery_Capacity_kWh ? vInfo.Battery_Capacity_kWh + ' kWh' : '—' },
-            ].map(({ label, val }) => (
-              <div className="vehicle-banner-item" key={label}>
-                <div className="vehicle-banner-label">{label}</div>
-                <div className="vehicle-banner-value">{val || '—'}</div>
-              </div>
-            ))}
-          </div>
-
-          <div className="stat-cards">
-            <div className="stat-card blue"><span className="label">Total Trips</span><span className="value">{fmtNum(stats.totalTrips)}</span></div>
-            <div className="stat-card cyan"><span className="label">Total Distance</span><span className="value">{fmtNum(stats.totalKm, 0)} km</span></div>
-            <div className="stat-card green"><span className="label">Charging Sessions</span><span className="value">{stats.chargingSessions}</span></div>
-            <div className="stat-card purple"><span className="label">Workshop Visits</span><span className="value">{stats.workshopVisits}</span></div>
-            <div className="stat-card orange"><span className="label">Total Expense</span><span className="value">{fmtCurrency(stats.totalExpense)}</span></div>
-            <div className="stat-card red"><span className="label">Overspeed %</span><span className="value">{stats.overspeedPct.toFixed(1)}%</span></div>
-            <div className="stat-card blue"><span className="label">Breakdowns</span><span className="value">{stats.breakdowns}</span></div>
-            <div className="stat-card cyan"><span className="label">Avg Passengers</span><span className="value">{stats.avgPassengers.toFixed(1)}</span></div>
-          </div>
-
-          <div className="charts-grid-2">
-            <DynamicChart title="Monthly Charging Sessions" sub="Times the vehicle was charged per month"
-              data={monthlyCharging} height={230} defaultType="bar"
-              metrics={[{ key: 'value', label: 'Charging Sessions', color: '#16a34a' }]} />
-            <DynamicChart title="Monthly Avg Passengers" sub="Average passengers per trip per month"
-              data={monthlyPassengers} height={230} defaultType="line"
-              metrics={[{ key: 'value', label: 'Avg Passengers', color: '#0891b2', format: v => Number(v).toFixed(1) }]} />
-          </div>
-
-          <div className="charts-grid-2">
-            <DynamicChart title="Monthly Workshop Visits" sub="Maintenance/workshop visits per month"
-              data={monthlyWorkshop} height={230} defaultType="bar"
-              metrics={[{ key: 'value', label: 'Workshop Visits', color: '#7c3aed' }]} />
-            <DynamicChart title="Monthly Total Expense (₹)" sub="Operational costs per month"
-              data={monthlyExp} height={230} defaultType="bar"
-              metrics={[{ key: 'value', label: 'Expense', color: '#ea580c', format: fmtCurrency }]} yTickFormatter={fmtK} />
-          </div>
-
-          <div style={{ marginTop: '20px' }}>
-            <DynamicChart title="Overspeed Events — Top 15 Vehicles" sub="Vehicles with the most speed-limit violations"
-              data={carsByOverspeedCount} xKey="vehicle" height={260} defaultType="bar" types={['bar', 'line']}
-              xTickProps={{ angle: -35, textAnchor: 'end', interval: 0, height: 50 }}
-              metrics={[{ key: 'overspeedTrips', label: 'Overspeed Trips', color: '#dc2626', colorFn: (r) => (r.overspeedTrips >= 8 ? '#7f1d1d' : '#dc2626') }]} />
-          </div>
-        </>
-      )}
-
-      {/* ── BRAND VIEW ── */}
-      {activeView === 'brand' && (
+      {viewMode === 'brand' && (
         <>
           <div className="charts-grid-2" style={{ marginBottom: 0 }}>
             <DynamicChart title="Total Distance by Brand (km)" sub="Cumulative distance per brand"
               data={brandStats} xKey="brand" defaultType="bar"
-              metrics={[{ key: 'totalDistance', label: 'Total Distance (km)', color: '#2563eb', format: v => fmtNum(v) + ' km' }]}
+              metrics={[{ key: 'totalDistance', label: 'Total Distance (km)', color: '#6c8cff', format: v => fmtNum(v) + ' km' }]}
               yTickFormatter={v => fmtNum(v / 1000) + 'k'} />
             <DynamicChart title="Overspeed Events by Brand" sub="Total violations per brand"
               data={brandStats} xKey="brand" defaultType="bar"
-              metrics={[{ key: 'overspeedEvents', label: 'Overspeed Events', color: '#dc2626' }]} />
+              metrics={[{ key: 'overspeedEvents', label: 'Overspeed Events', color: '#f87171' }]} />
           </div>
 
           <div className="charts-grid-2" style={{ marginTop: '20px' }}>
             <DynamicChart title="Workshop Visits by Brand" sub="Total maintenance visits per brand"
               data={brandStats} xKey="brand" defaultType="bar"
-              metrics={[{ key: 'workshopVisits', label: 'Workshop Visits', color: '#7c3aed' }]} />
+              metrics={[{ key: 'workshopVisits', label: 'Workshop Visits', color: '#a78bfa' }]} />
             <DynamicChart title="Total Income by Brand (₹)" sub="Revenue generated per brand"
               data={brandStats} xKey="brand" defaultType="bar"
-              metrics={[{ key: 'totalIncome', label: 'Total Income', color: '#16a34a', format: fmtCurrency }]}
+              metrics={[{ key: 'totalIncome', label: 'Total Income', color: '#34d399', format: fmtCurrency }]}
               yTickFormatter={fmtK} />
           </div>
 
